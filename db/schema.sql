@@ -69,7 +69,8 @@ CREATE TABLE IF NOT EXISTS nse_filing_registry (
     is_latest_revision      BOOLEAN NOT NULL DEFAULT TRUE,
     supersedes_filing_id    BIGINT REFERENCES nse_filing_registry(filing_id),
 
-    xbrl_url                TEXT,
+    xbrl_url                TEXT,             -- machine-readable XBRL XML URL (authoritative for parsing)
+    ixbrl_url               TEXT,             -- rendered iXBRL/IndAS-details HTML companion document (ISSUE 7)
     detail_url              TEXT,
     source_url              TEXT,
     source_kind             VARCHAR(24) NOT NULL,     -- INTEGRATED_FILING_IXBRL / XBRL / HTML / PDF / ZIP
@@ -90,6 +91,12 @@ CREATE TABLE IF NOT EXISTS nse_filing_registry (
 );
 CREATE INDEX IF NOT EXISTS idx_registry_symbol_period ON nse_filing_registry (symbol, period_end_date);
 CREATE INDEX IF NOT EXISTS idx_registry_statuses ON nse_filing_registry (discovery_status, download_status, parse_status);
+
+-- ISSUE 7: idempotent migration for databases created before ixbrl_url
+-- existed. Safe to re-run: no-op if the column is already present (either
+-- from this ALTER having run before, or because the CREATE TABLE above
+-- already included it on a fresh install).
+ALTER TABLE nse_filing_registry ADD COLUMN IF NOT EXISTS ixbrl_url TEXT;
 
 -- ============================================================
 -- RAW STORAGE (never overwritten, never discarded)

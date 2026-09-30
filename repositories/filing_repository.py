@@ -52,18 +52,22 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
         is_latest_revision
         supersedes_filing_id
         xbrl_url
+        ixbrl_url
         detail_url
         source_url
         filing_hash
         catalog_json
         discovery_status
 
-    Important:
-        `xbrl_url` should point to the iXBRL HTML document for Phase 1
-        because the parser operates on the iXBRL HTML.
-
-        The original XML URL from NSE should remain available inside
-        catalog_json.
+    IMPORTANT (ISSUE 7 — corrected from an earlier assumption):
+        `xbrl_url` is the AUTHORITATIVE machine-readable XBRL XML URL —
+        this is what parsers.ixbrl_parser.parse_document() must be pointed
+        at for financial extraction. NSE's "iXBRL" HTML for Integrated
+        Filings was found to contain zero inline-XBRL tags (no ix:header,
+        ix:nonFraction, xbrli:context) — it is a plain presentation page,
+        not inline XBRL despite the name. It is retained separately as
+        `ixbrl_url` for reference/archival only and must NEVER be passed
+        to the financial XBRL parser.
     """
 
     required_fields = {
@@ -106,6 +110,7 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
         "revision_date": None,
         "revision_remarks": None,
         "xbrl_url": None,
+        "ixbrl_url": None,
         "detail_url": None,
         "source_url": None,
         "source_kind": None,
@@ -167,6 +172,7 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
                 revision_date = :revision_date,
                 revision_remarks = :revision_remarks,
                 xbrl_url = :xbrl_url,
+                ixbrl_url = :ixbrl_url,
                 detail_url = :detail_url,
                 source_url = :source_url,
                 filing_hash = :filing_hash,
@@ -247,6 +253,7 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
             revision_date,
             revision_remarks,
             xbrl_url,
+            ixbrl_url,
             detail_url,
             source_url,
             source_kind,
@@ -271,6 +278,7 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
             :revision_date,
             :revision_remarks,
             :xbrl_url,
+            :ixbrl_url,
             :detail_url,
             :source_url,
             :source_kind,
@@ -300,6 +308,7 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
             revision_date = EXCLUDED.revision_date,
             revision_remarks = EXCLUDED.revision_remarks,
             xbrl_url = EXCLUDED.xbrl_url,
+            ixbrl_url = EXCLUDED.ixbrl_url,
             detail_url = EXCLUDED.detail_url,
             source_url = EXCLUDED.source_url,
             filing_hash = EXCLUDED.filing_hash,
@@ -314,6 +323,19 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
     result = session.execute(sql, params)
 
     return result.scalar_one()
+
+
+def get_filing_by_id(session, filing_id: int):
+    """
+    ISSUE 9: fetch a single registered filing's full row as a dict, needed
+    by the end-to-end single-filing pipeline (which must never touch other
+    discovered filings — ISSUE 11).
+    """
+    row = session.execute(
+        text("SELECT * FROM nse_filing_registry WHERE filing_id = :filing_id"),
+        {"filing_id": filing_id},
+    ).mappings().one_or_none()
+    return dict(row) if row is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -489,6 +511,49 @@ def insert_xbrl_context(
             "dimensions_json": json.dumps(
                 ctx.dimensions or {}
             ),
+        },
+    )
+
+    return result.scalar_one()
+
+
+# ---------------------------------------------------------------------------
+# XBRL Unit (ISSUE 9 — was missing; needed for full end-to-end persistence)
+# ---------------------------------------------------------------------------
+
+def insert_xbrl_unit(session, filing_id: int, unit) -> int:
+    """
+    Insert or update an XBRL unit declaration (xbrl_units table).
+    `unit` is a parsers.ixbrl_parser.XbrlUnit (unit_ref, measure).
+    """
+
+    sql = text(
+        """
+        INSERT INTO xbrl_units (
+            filing_id,
+            unit_ref,
+            measure
+        )
+        VALUES (
+            :filing_id,
+            :unit_ref,
+            :measure
+        )
+
+        ON CONFLICT (filing_id, unit_ref)
+        DO UPDATE SET
+            measure = EXCLUDED.measure
+
+        RETURNING unit_id
+        """
+    )
+
+    result = session.execute(
+        sql,
+        {
+            "filing_id": filing_id,
+            "unit_ref": unit.unit_ref,
+            "measure": unit.measure,
         },
     )
 

@@ -63,6 +63,78 @@ def upsert_income_statement(session, period_id: int, fields: dict, unit: str):
     session.execute(sql, params)
 
 
+_BALANCE_SHEET_COLUMNS = [
+    "equity_share_capital", "other_equity", "long_term_borrowings",
+    "other_long_term_liabilities", "deferred_tax_liabilities", "long_term_provisions",
+    "short_term_borrowings", "trade_payables", "other_current_liabilities",
+    "short_term_provisions", "total_liabilities", "property_plant_equipment",
+    "capital_work_in_progress", "goodwill", "intangible_assets",
+    "non_current_investments", "deferred_tax_assets", "other_non_current_assets",
+    "current_investments", "inventories", "trade_receivables",
+    "cash_and_cash_equivalents", "bank_balances", "other_current_assets",
+    "total_assets",
+]
+
+
+def upsert_balance_sheet(session, period_id: int, fields: dict, unit: str):
+    """
+    ISSUE 2 (mapping-coverage fix): only ever called by the pipeline when
+    NormalizationResult.balance_sheet_coverage == AVAILABLE (i.e. the
+    filing actually contains a total_assets figure) — this function itself
+    does not enforce that, so callers must check coverage first. It never
+    fabricates zeros: any column not present in `fields` is written as NULL.
+    """
+    columns = list(_BALANCE_SHEET_COLUMNS)
+    params = {c: fields.get(c) for c in columns}
+    params["period_id"] = period_id
+    params["unit"] = unit
+
+    col_list = ", ".join(columns)
+    val_list = ", ".join(f":{c}" for c in columns)
+    update_list = ", ".join(f"{c} = EXCLUDED.{c}" for c in columns)
+
+    sql = text(
+        f"""
+        INSERT INTO balance_sheet (period_id, {col_list}, unit)
+        VALUES (:period_id, {val_list}, :unit)
+        ON CONFLICT (period_id) DO UPDATE SET
+            {update_list}, unit = EXCLUDED.unit, updated_at = now()
+        """
+    )
+    session.execute(sql, params)
+
+
+_CASHFLOW_COLUMNS = [
+    "cfo", "cfi", "cff", "net_change_in_cash", "opening_cash_balance",
+    "closing_cash_balance", "depreciation_addback", "working_capital_changes",
+    "interest_paid", "tax_paid", "purchase_of_ppe", "sale_of_ppe",
+    "investments_net", "borrowings", "repayments", "dividends_paid",
+]
+
+
+def upsert_cashflow_statement(session, period_id: int, fields: dict, unit: str):
+    """Same contract as upsert_balance_sheet: caller must gate this on
+    cashflow_statement_coverage == AVAILABLE; never fabricates zeros."""
+    columns = list(_CASHFLOW_COLUMNS)
+    params = {c: fields.get(c) for c in columns}
+    params["period_id"] = period_id
+    params["unit"] = unit
+
+    col_list = ", ".join(columns)
+    val_list = ", ".join(f":{c}" for c in columns)
+    update_list = ", ".join(f"{c} = EXCLUDED.{c}" for c in columns)
+
+    sql = text(
+        f"""
+        INSERT INTO cashflow_statement (period_id, {col_list}, unit)
+        VALUES (:period_id, {val_list}, :unit)
+        ON CONFLICT (period_id) DO UPDATE SET
+            {update_list}, unit = EXCLUDED.unit, updated_at = now()
+        """
+    )
+    session.execute(sql, params)
+
+
 def insert_ratio(session, period_id: int, ratio: dict):
     sql = text(
         """

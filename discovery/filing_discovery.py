@@ -446,8 +446,18 @@ def registry_entry_from_catalog_row(
     # iXBRL + XML URLs
     # ---------------------------------------------------------------
 
-    # IMPORTANT:
-    # Phase 1 parser works on iXBRL HTML, not the XML attachment.
+    # ISSUE 7 / ISSUE 9 CORRECTION:
+    # The live "ixbrl" field NSE returns points to a rendered IndAS-details
+    # HTML page that contains ZERO inline-XBRL structures (no ix:header,
+    # ix:nonFraction, ix:nonNumeric, xbrli:context — verified against the
+    # actual RELIANCE filing 7 response). It is a presentation companion
+    # document, not inline XBRL, despite its name/field key. The "xbrl"
+    # field is the genuine machine-readable XBRL XML and is what
+    # parsers.ixbrl_parser.parse_document() must be pointed at.
+    #
+    # This was reversed in an earlier version of this function (xbrl_url
+    # was set to the ixbrl HTML). Do not revert this without re-confirming
+    # the live response actually contains inline-XBRL tags.
     ixbrl_url = (
         row.get("ixbrl")
         or row.get("iXBRL")
@@ -458,7 +468,6 @@ def registry_entry_from_catalog_row(
         or row.get("ixbrlURL")
     )
 
-    # Keep XML URL only as metadata inside catalog_json.
     xml_xbrl_url = (
         row.get("xbrl")
         or row.get("XBRL")
@@ -609,9 +618,14 @@ def registry_entry_from_catalog_row(
 
         "revision_remarks": revision_remarks,
 
-        # IMPORTANT:
-        # Store iXBRL HTML as the primary parser source.
-        "xbrl_url": ixbrl_url,
+        # ISSUE 7: xbrl_url is now the authoritative machine-readable XML —
+        # this is what gets downloaded and passed to parse_document().
+        "xbrl_url": xml_xbrl_url,
+
+        # Companion rendered-HTML document, retained separately (schema
+        # column added — see db/schema.sql). Never fed to the financial
+        # parser.
+        "ixbrl_url": ixbrl_url,
 
         "detail_url": detail_url,
 
