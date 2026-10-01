@@ -486,6 +486,81 @@ def test_persistence_failure_marks_normalization_failed_not_success():
     assert session.nested_exited_with_exception is True
 
 
+def test_suspicious_ratios_persisted_with_needs_validation_flag_not_altered():
+    """ISSUE 6: the real RELIANCE Q1 fixture's DebtEquityRatio/
+    DebtServiceCoverageRatio/InterestServiceCoverageRatio are scale-
+    suspicious (see validate_ratio_plausibility). process_filing() must
+    persist them with needs_validation=True and the RAW, unaltered value
+    — never silently rescaled — while a non-suspicious ratio on the same
+    filing gets needs_validation=False."""
+    import nse_financials_pipeline as pipeline
+
+    q1_filing_row = {
+        "filing_id": 7,
+        "symbol": "RELIANCE",
+        "company_name": "Reliance Industries Limited",
+        "period_start_date": None,
+        "period_end_date": date(2026, 6, 30),
+        "period_type": "quarterly",
+        "statement_type": "consolidated",
+        "submission_type": "Unaudited",
+        "source_kind": "INTEGRATED_FILING_IXBRL",
+        "xbrl_url": "https://nsearchives.nseindia.com/corporate/xbrl/fake_q1.xml",
+        "ixbrl_url": "https://nsearchives.nseindia.com/corporate/ixbrl/fake_q1.html",
+        "financial_year": None,
+    }
+
+    class _Q1FakeClient:
+        def get(self, url, is_api=True, params=None, accept_json=True):
+            if "xml" in url:
+                return _FakeFetchResult(Q1_FIXTURE_PATH.read_bytes(), "application/xml")
+            return _FakeFetchResult(b"<html></html>", "text/html")
+
+    ratio_inserts = {}
+
+    class _Q1FakeSession(_FakeSession):
+        def execute(self, sql, params=None):
+            t = str(sql)
+            if "INSERT INTO ratios" in t and params:
+                ratio_inserts[params["ratio_name"]] = dict(params)
+            return super().execute(sql, params)
+
+    session = _Q1FakeSession(q1_filing_row)
+    summary = pipeline.process_filing(_Q1FakeClient(), session, 7)
+
+    assert summary["status"] == "COMPLETE"
+    assert "Debt Equity Ratio" in ratio_inserts
+    assert ratio_inserts["Debt Equity Ratio"]["needs_validation"] is True
+    assert ratio_inserts["Debt Equity Ratio"]["value"] == Decimal("0.004")  # raw, unaltered
+
+    assert ratio_inserts["Debt Service Coverage Ratio"]["needs_validation"] is True
+    assert ratio_inserts["Interest Service Coverage Ratio"]["needs_validation"] is True
+
+
+def test_get_validated_ratios_excludes_flagged_rows():
+    """ISSUE 6 enforcement point: get_validated_ratios must filter out
+    needs_validation=TRUE rows so a downstream ML/fundamental feature
+    pipeline reading through it never sees an unvalidated ratio."""
+    from repositories.financial_repository import get_validated_ratios
+
+    captured_sql = {}
+
+    class _CaptureSession:
+        def execute(self, sql, params=None):
+            captured_sql["text"] = str(sql)
+            captured_sql["params"] = params
+            class _R:
+                def mappings(self):
+                    return self
+                def all(self):
+                    return []
+            return _R()
+
+    get_validated_ratios(_CaptureSession(), period_id=999)
+    assert "needs_validation = FALSE" in captured_sql["text"]
+    assert captured_sql["params"] == {"period_id": 999}
+
+
 def test_successful_transaction_persists_all_expected_tables():
     """9. Successful transaction — confirm every expected table actually
     received an insert call in one successful run."""
@@ -497,8 +572,9 @@ def test_successful_transaction_persists_all_expected_tables():
     assert summary["status"] == "COMPLETE"
     assert any("INSERT INTO financial_periods" in c for c in session.calls)
     assert any("INSERT INTO income_statement" in c for c in session.calls)
-    # this fixture reports no balance sheet / cash flow (same as the real
-    # RELIANCE quarterly filings already tested) — those inserts correctly
-    # do NOT happen, which is itself part of what "successful" means here
-    assert not any("INSERT INTO balance_sheet" in c for c in session.calls)
+    # ISSUE 5: the filing_9 fixture now includes representative balance-sheet
+    # instant facts (Assets, Equity, PPE, Cash, Borrowings, Receivables,
+    # Payables, Investments) — these must now resolve AND actually persist.
+    assert any("INSERT INTO balance_sheet" in c for c in session.calls)
+    # this fixture still has no cash-flow concepts at all — correctly no insert
     assert not any("INSERT INTO cashflow_statement" in c for c in session.calls)

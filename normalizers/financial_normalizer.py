@@ -97,27 +97,83 @@ def _resolve_field(doc: ParsedXbrlDocument, candidates: list, period_end: date, 
     return None, None
 
 
-def _resolve_text_metadata(doc: ParsedXbrlDocument, candidates: list) -> Optional[str]:
+def _context_matches_period(ctx, period_end, period_start) -> bool:
+    if ctx is None:
+        return False
+    if ctx.is_instant:
+        return ctx.instant_date == period_end
+    if period_start is not None:
+        return ctx.period_end == period_end and ctx.period_start == period_start
+    return ctx.period_end == period_end
+
+
+def _resolve_text_metadata(
+    doc: ParsedXbrlDocument, candidates: list, period_end=None, period_start=None
+) -> Optional[str]:
     """Tries each candidate concept name in order (same alias convention as
     _resolve_field). Different sources for the same real-world filing can
     tag the identical disclosure under different concept local-names (see
     concept_map.METADATA_CONCEPTS docstring) — trying a list here, instead
     of a single hardcoded name, is what lets both the reconstructed HTML
     fixture and the real NSE XML resolve statement_type correctly without
-    either one regressing the other."""
+    either one regressing the other.
+
+    ISSUE (found against real filing_id=9): a real ANNUAL filing commonly
+    repeats the identical metadata disclosure (e.g.
+    "NatureOfReportStandaloneConsolidated" = "Consolidated") on BOTH its
+    annual context AND its Q4-only context — both non-dimensioned. The
+    original version of this function required EXACTLY ONE non-dimensioned
+    match across the WHOLE document, which broke the instant that
+    happened, returning None (statement_type_resolved = None) even though
+    there was no real ambiguity in the value itself.
+
+    Fixed by, in order of preference:
+      1. If the canonical period_end/period_start is known, prefer the
+         fact(s) tagged on the context matching that exact period (ISSUE 2:
+         the canonical period should drive this resolution too, not just
+         the numeric fields).
+      2. If multiple matches remain (within the matched period, or across
+         the whole document when no period was given), and they all AGREE
+         on the same value, that is not genuine ambiguity — just the same
+         disclosure repeated — so return the common value.
+      3. Only return None when matches are genuinely absent, or genuinely
+         disagree in value.
+    """
     for concept_name in candidates:
         matches = doc.facts_for_concept(concept_name)
         non_dim_matches = [
             m for m in matches
             if not doc.contexts.get(m.context_ref, None) or not doc.contexts[m.context_ref].has_dimensions
         ]
+        if not non_dim_matches:
+            continue
+
+        if period_end is not None:
+            period_matches = [
+                m for m in non_dim_matches
+                if _context_matches_period(doc.contexts.get(m.context_ref), period_end, period_start)
+            ]
+            if period_matches:
+                values = {m.raw_value for m in period_matches}
+                if len(values) == 1:
+                    return period_matches[0].raw_value
+                continue  # genuine disagreement even within the matching period — try next alias
+
         if len(non_dim_matches) == 1:
             return non_dim_matches[0].raw_value
+
+        values = {m.raw_value for m in non_dim_matches}
+        if len(values) == 1:
+            return non_dim_matches[0].raw_value
+        # genuinely conflicting values across the document with no period
+        # to disambiguate by — do not guess, try the next alias concept.
     return None
 
 
 def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[date] = None) -> NormalizationResult:
-    statement_type_raw = _resolve_text_metadata(doc, METADATA_CONCEPTS["statement_type"])
+    statement_type_raw = _resolve_text_metadata(
+        doc, METADATA_CONCEPTS["statement_type"], period_end=period_end, period_start=period_start
+    )
     statement_type = None
     if statement_type_raw:
         normalized = statement_type_raw.strip().lower()
@@ -128,8 +184,12 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
         else:
             statement_type = None  # unrecognized value — do not guess
 
-    reporting_quarter_raw = _resolve_text_metadata(doc, METADATA_CONCEPTS["reporting_quarter"])
-    audited_status_raw = _resolve_text_metadata(doc, METADATA_CONCEPTS["audited_status"])
+    reporting_quarter_raw = _resolve_text_metadata(
+        doc, METADATA_CONCEPTS["reporting_quarter"], period_end=period_end, period_start=period_start
+    )
+    audited_status_raw = _resolve_text_metadata(
+        doc, METADATA_CONCEPTS["audited_status"], period_end=period_end, period_start=period_start
+    )
 
     # Unit: look at the unit actually attached to RevenueFromOperations (or
     # whichever income-statement fact resolves first); if facts use

@@ -139,31 +139,151 @@ KNOWN_UNMAPPED_FINANCIAL_CONCEPTS = {
         "Niche regulatory-deferral disclosure — no normalized field for Phase 1",
 }
 
+#
+# ISSUE 5 (mapping-coverage completeness): this map was previously only
+# ~9 fields deep, each with a single candidate concept name, several of
+# them guessed rather than confirmed. This is expanded to cover every
+# balance_sheet schema column with multiple plausible candidate names
+# drawn from the standard Ind-AS / SEBI "in-capmkt" XBRL taxonomy
+# (the same taxonomy family the real RELIANCE Q1 filing uses — that
+# filing's own concepts, e.g. RevenueFromOperations/ProfitBeforeTax/
+# TaxExpense, follow this exact naming convention).
+#
+# HONESTY NOTE: unlike the income-statement map (built and verified
+# against the real RELIANCE Q1 FY27 XBRL) and the equity_share_capital
+# fix above (also verified against real data), these balance-sheet/
+# cashflow aliases are NOT yet verified against a real filing that
+# actually contains a full balance sheet — I do not have that file.
+# They are included because the alternative (leaving them unmapped) is
+# worse: when a real annual filing's XBRL does carry a concept matching
+# one of these candidates, it will now correctly resolve; if none match,
+# the field simply stays None (no harm done) and the unmatched concept
+# surfaces as UNMAPPED_FINANCIAL for review, per the classifier's
+# fail-safe design — nothing is silently hidden either way. Treat this
+# as "ready to verify", not "confirmed", until run against a real annual
+# filing with balance-sheet data.
+#
 BALANCE_SHEET_CONCEPT_MAP = {
-    # Real taxonomy concept is PaidUpValueOfEquityShareCapital — confirmed
-    # against the actual filing (PaidUpEquityShareCapital, the previous
-    # sole candidate, matches zero facts in it). Both kept for safety
-    # across filings/years.
     "equity_share_capital": [
-        "PaidUpValueOfEquityShareCapital", "PaidUpEquityShareCapital", "EquityShareCapital"
+        "PaidUpValueOfEquityShareCapital", "PaidUpEquityShareCapital",
+        "EquityShareCapital", "IssuedCapital",
     ],
     "other_equity": ["OtherEquity"],
-    "long_term_borrowings": ["LongTermBorrowings"],
-    "trade_payables": ["TradePayables"],
-    "inventories": ["Inventories"],
-    "trade_receivables": ["TradeReceivables"],
-    "cash_and_cash_equivalents": ["CashAndCashEquivalents"],
-    "total_assets": ["Assets"],
+
+    "long_term_borrowings": [
+        "BorrowingsNoncurrent", "LongTermBorrowings", "NoncurrentBorrowings", "LongtermBorrowings",
+    ],
+    "other_long_term_liabilities": [
+        "OtherNoncurrentLiabilities", "OtherNonCurrentLiabilities", "OtherLongTermLiabilities",
+    ],
+    "deferred_tax_liabilities": [
+        "DeferredTaxLiabilitiesNet", "DeferredTaxLiabilities",
+    ],
+    "long_term_provisions": [
+        "NoncurrentProvisions", "LongTermProvisions", "ProvisionsNoncurrent",
+    ],
+
+    "short_term_borrowings": [
+        "BorrowingsCurrent", "ShortTermBorrowings", "CurrentBorrowings", "ShorttermBorrowings",
+    ],
+    "trade_payables": [
+        "TradePayablesCurrent", "TradePayables",
+    ],
+    "other_current_liabilities": [
+        "OtherCurrentLiabilities", "OtherCurrentFinancialLiabilities",
+    ],
+    "short_term_provisions": [
+        "CurrentProvisions", "ShortTermProvisions", "ProvisionsCurrent",
+    ],
+
     "total_liabilities": ["EquityAndLiabilities", "Liabilities"],
+
+    "property_plant_equipment": ["PropertyPlantAndEquipment"],
+    "capital_work_in_progress": ["CapitalWorkInProgress"],
+    "goodwill": ["Goodwill"],
+    "intangible_assets": [
+        "OtherIntangibleAssets", "IntangibleAssetsOtherThanGoodwill", "IntangibleAssets",
+    ],
+    "non_current_investments": [
+        "NoncurrentInvestments", "NonCurrentInvestments",
+    ],
+    "deferred_tax_assets": [
+        "DeferredTaxAssetsNet", "DeferredTaxAssets",
+    ],
+    "other_non_current_assets": [
+        "OtherNoncurrentAssets", "OtherNonCurrentAssets",
+    ],
+
+    "current_investments": ["CurrentInvestments"],
+    "inventories": ["Inventories"],
+    "trade_receivables": [
+        "TradeReceivablesCurrent", "TradeReceivables",
+    ],
+    "cash_and_cash_equivalents": ["CashAndCashEquivalents"],
+    "bank_balances": [
+        "BankBalancesOtherThanCashAndCashEquivalents", "OtherBankBalances",
+    ],
+    "other_current_assets": ["OtherCurrentAssets"],
+
+    "total_assets": ["Assets"],
 }
 
 CASHFLOW_CONCEPT_MAP = {
-    "cfo": ["CashFlowsFromUsedInOperatingActivities"],
-    "cfi": ["CashFlowsFromUsedInInvestingActivities"],
-    "cff": ["CashFlowsFromUsedInFinancingActivities"],
-    "net_change_in_cash": ["IncreaseDecreaseInCashAndCashEquivalents"],
-    "opening_cash_balance": ["CashAndCashEquivalentsAtBeginningOfPeriod"],
-    "closing_cash_balance": ["CashAndCashEquivalentsAtEndOfPeriod"],
+    "cfo": [
+        "CashFlowsFromUsedInOperatingActivities",
+        "NetCashFlowsFromUsedInOperatingActivities",
+    ],
+    "cfi": [
+        "CashFlowsFromUsedInInvestingActivities",
+        "NetCashFlowsFromUsedInInvestingActivities",
+    ],
+    "cff": [
+        "CashFlowsFromUsedInFinancingActivities",
+        "NetCashFlowsFromUsedInFinancingActivities",
+    ],
+    "net_change_in_cash": [
+        "IncreaseDecreaseInCashAndCashEquivalents",
+        "NetIncreaseDecreaseInCashAndCashEquivalentsBeforeEffectOfExchangeRateChanges",
+    ],
+    "opening_cash_balance": [
+        "CashAndCashEquivalentsAtBeginningOfPeriod",
+        "CashAndCashEquivalentCashFlowStatementAtBeginningOfPeriod",
+    ],
+    "closing_cash_balance": [
+        "CashAndCashEquivalentsAtEndOfPeriod",
+        "CashAndCashEquivalentCashFlowStatementAtEndOfPeriod",
+    ],
+    "depreciation_addback": [
+        "AdjustmentForDepreciationAndAmortisationExpense",
+        "AdjustmentsForDepreciationAndAmortisationExpense",
+    ],
+    "interest_paid": [
+        "InterestPaidClassifiedAsOperatingActivities",
+        "InterestPaidClassifiedAsFinancingActivities",
+        "FinanceCostsPaid",
+    ],
+    "tax_paid": [
+        "IncomeTaxesPaidRefundClassifiedAsOperatingActivities",
+        "IncomeTaxesPaid",
+    ],
+    "purchase_of_ppe": [
+        "PurchaseOfPropertyPlantAndEquipment",
+        "PaymentsToAcquirePropertyPlantAndEquipment",
+    ],
+    "sale_of_ppe": [
+        "ProceedsFromSalesOfPropertyPlantAndEquipment",
+        "ProceedsFromSaleOfPropertyPlantAndEquipment",
+    ],
+    "borrowings": [
+        "ProceedsFromBorrowings",
+    ],
+    "repayments": [
+        "RepaymentsOfBorrowings",
+    ],
+    "dividends_paid": [
+        "DividendsPaidClassifiedAsFinancingActivities",
+        "DividendsPaid",
+    ],
 }
 
 RATIO_CONCEPTS = {

@@ -560,6 +560,24 @@ def registry_entry_from_catalog_row(
     )
 
     # ---------------------------------------------------------------
+    # Period type (ISSUE 1 fix): catalog-only, best-effort classification
+    # ---------------------------------------------------------------
+    # This runs at DISCOVERY time, before the filing's XBRL has even been
+    # downloaded, so it can only use catalog metadata (submission_type,
+    # reporting_quarter text, period_end) — not XBRL context spans. It is
+    # NOT the final authority: resolvers.period_resolver.resolve_canonical_period
+    # cross-checks this against the actual XBRL contexts once the filing
+    # is downloaded and parsed, and can override it. Whatever is decided
+    # here never overwrites the raw catalog row (catalog_json below keeps
+    # it verbatim, and the registry's period_type column itself remains
+    # auditable/queryable without needing the full pipeline to have run).
+    discovery_period_type = _classify_discovery_period_type(
+        submission_type=submission_type,
+        reporting_quarter=reporting_quarter,
+        period_end=period_end,
+    )
+
+    # ---------------------------------------------------------------
     # Preserve original NSE catalog row
     # ---------------------------------------------------------------
 
@@ -588,7 +606,7 @@ def registry_entry_from_catalog_row(
 
         "period_end_date": period_end,
 
-        "period_type": "quarterly",
+        "period_type": discovery_period_type,
 
         "reporting_quarter": reporting_quarter,
 
@@ -640,6 +658,57 @@ def registry_entry_from_catalog_row(
 
         "discovery_status": "DISCOVERED",
     }
+
+def _classify_discovery_period_type(submission_type, reporting_quarter, period_end) -> str:
+    """
+    ISSUE 1 fix: catalog-only period_type classification at discovery
+    time. Previously this was unconditionally hardcoded to "quarterly" —
+    meaning every audited annual filing was mis-registered, and the
+    (correct) downstream canonical resolver had to silently fight the
+    registry on every single annual filing instead of the registry
+    already reflecting reality.
+
+    This has no access to the filing's XBRL yet (discovery runs before
+    download), so it can only reason from catalog metadata:
+      - An explicit Q1/Q2/Q3 marker in the reporting_quarter text always
+        means quarterly, regardless of audited status (a company CAN
+        audit an interim quarter; that doesn't make it an annual filing).
+      - An audited filing whose reporting_quarter text is blank, or marked
+        Q4/"fourth quarter"/"annual"/"year ended", is classified annual —
+        this is exactly the SEBI LODR pattern where audited year-end
+        results are filed as the annual (optionally Q4-combined) filing.
+      - Anything else defaults to quarterly (the safe, pre-existing
+        fallback) rather than guessing annual without positive evidence.
+
+    This is a first pass only. resolvers.period_resolver.resolve_canonical_period
+    is the final authority once the actual XBRL contexts are available,
+    and will override this (recording the conflict, never silently) if
+    the source disagrees — see that module's docstring.
+    """
+    quarter_text = (str(reporting_quarter) if reporting_quarter else "").strip().lower()
+    submission_text = (str(submission_type) if submission_type else "").strip().lower()
+    is_audited = "audit" in submission_text and "unaudit" not in submission_text
+
+    explicit_quarter_markers = (
+        "q1", "q2", "q3", "quarter 1", "quarter i", "first quarter",
+        "quarter 2", "quarter ii", "second quarter",
+        "quarter 3", "quarter iii", "third quarter",
+    )
+    if any(marker in quarter_text for marker in explicit_quarter_markers):
+        return "quarterly"
+
+    annual_or_q4_markers = (
+        "annual", "year ended", "fourth quarter", "quarter 4", "q4", "quarter iv",
+    )
+    looks_like_q4_or_annual_or_blank = (not quarter_text) or any(
+        marker in quarter_text for marker in annual_or_q4_markers
+    )
+
+    if is_audited and looks_like_q4_or_annual_or_blank:
+        return "annual"
+
+    return "quarterly"
+
 
 def _normalize_statement_type(value) -> str:
     """

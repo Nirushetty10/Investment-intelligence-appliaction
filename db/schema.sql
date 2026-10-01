@@ -98,6 +98,10 @@ CREATE INDEX IF NOT EXISTS idx_registry_statuses ON nse_filing_registry (discove
 -- already included it on a fresh install).
 ALTER TABLE nse_filing_registry ADD COLUMN IF NOT EXISTS ixbrl_url TEXT;
 
+-- ISSUE 6: idempotent migration for databases created before
+-- ratios.needs_validation existed. Safe to re-run.
+ALTER TABLE ratios ADD COLUMN IF NOT EXISTS needs_validation BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- ============================================================
 -- RAW STORAGE (never overwritten, never discarded)
 -- ============================================================
@@ -321,6 +325,16 @@ CREATE TABLE IF NOT EXISTS ratios (
     value               NUMERIC(20,6),
     unit                VARCHAR(16),
     source_concept      TEXT,
+    -- ISSUE 6: raw XBRL ratio value is ALWAYS preserved unchanged (never
+    -- rescaled) even when it looks scale-suspicious (e.g. a value ~100x
+    -- smaller than NSE's own presentation HTML shows for the same filing
+    -- — see validators.financial_validator.validate_ratio_plausibility).
+    -- This flag is how "suspicious, don't use yet" is recorded without
+    -- ever touching the value itself; any downstream fundamental/ML
+    -- feature pipeline MUST filter on this (see
+    -- repositories.financial_repository.get_validated_ratios) rather
+    -- than querying this table directly.
+    needs_validation    BOOLEAN NOT NULL DEFAULT FALSE,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (period_id, ratio_name)
 );

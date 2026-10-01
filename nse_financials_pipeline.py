@@ -715,8 +715,26 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
                 },
             )
             upsert_income_statement(session, period_id, result.income_statement, result.period.unit)
+            # ISSUE 6: flag scale-suspicious ratios (e.g. DebtEquityRatio
+            # tagged ~100x smaller than NSE's own presentation HTML shows
+            # for the same filing) as needs_validation=True, WITHOUT
+            # altering the preserved raw value itself. `issues` already
+            # contains the ratio_scale_plausibility findings from the
+            # VALIDATE step above (via validate_ratio_plausibility); each
+            # carries a structured `subject` (the ratio_name) rather than
+            # requiring message-text parsing. Any downstream fundamental/
+            # ML feature pipeline must read ratios via
+            # repositories.financial_repository.get_validated_ratios
+            # (which filters needs_validation=TRUE rows out), never a bare
+            # SELECT * FROM ratios.
+            flagged_ratio_names = {
+                issue.subject for issue in issues
+                if issue.check_name == "ratio_scale_plausibility" and issue.subject
+            }
             for ratio in result.ratios:
-                insert_ratio(session, period_id, ratio)
+                ratio_with_flag = dict(ratio)
+                ratio_with_flag["needs_validation"] = ratio["ratio_name"] in flagged_ratio_names
+                insert_ratio(session, period_id, ratio_with_flag)
 
             # ISSUE 2 (mapping-coverage fix): only persist balance_sheet /
             # cashflow_statement when the filing actually reports them.
@@ -747,7 +765,7 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
     # completeness (mapped / intentionally-unmapped / unmapped-financial
     # fact counts), so a reviewer never has to guess which one a number
     # like "108 unmapped" was actually describing.
-    coverage_report = build_coverage_report(filing["symbol"], resolved.financial_year, result)
+    coverage_report = build_coverage_report(filing["symbol"], resolved, result)
     summary["coverage_report"] = format_coverage_report(coverage_report)
     summary["mapped_facts"] = coverage_report.mapped_facts
     summary["intentionally_unmapped_facts"] = coverage_report.intentionally_unmapped_facts

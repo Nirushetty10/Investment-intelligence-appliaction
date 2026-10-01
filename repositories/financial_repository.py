@@ -136,15 +136,45 @@ def upsert_cashflow_statement(session, period_id: int, fields: dict, unit: str):
 
 
 def insert_ratio(session, period_id: int, ratio: dict):
+    """
+    ISSUE 6: `ratio` may include a `needs_validation` key (set by the
+    caller from validators.financial_validator.validate_ratio_plausibility
+    — see nse_financials_pipeline.process_filing). Defaults to False when
+    absent so every existing call site that doesn't know about this flag
+    still works unchanged. The raw `value` is never altered based on this
+    flag — see the needs_validation column comment in db/schema.sql.
+    """
     sql = text(
         """
-        INSERT INTO ratios (period_id, ratio_name, value, unit, source_concept)
-        VALUES (:period_id, :ratio_name, :value, :unit, :source_concept)
+        INSERT INTO ratios (period_id, ratio_name, value, unit, source_concept, needs_validation)
+        VALUES (:period_id, :ratio_name, :value, :unit, :source_concept, :needs_validation)
         ON CONFLICT (period_id, ratio_name) DO UPDATE SET
-            value = EXCLUDED.value, unit = EXCLUDED.unit, source_concept = EXCLUDED.source_concept
+            value = EXCLUDED.value, unit = EXCLUDED.unit, source_concept = EXCLUDED.source_concept,
+            needs_validation = EXCLUDED.needs_validation
         """
     )
-    session.execute(sql, {"period_id": period_id, **ratio})
+    params = {"period_id": period_id, "needs_validation": False, **ratio}
+    session.execute(sql, params)
+
+
+def get_validated_ratios(session, period_id: int):
+    """
+    ISSUE 6: "prevent unvalidated ratios from being used by downstream
+    fundamental/ML features" — this is the enforcement point. Any future
+    derived-metrics/ML feature pipeline MUST read ratios through this
+    function (or an equivalent explicit `WHERE needs_validation = FALSE`
+    filter), never through a bare `SELECT * FROM ratios`, which would
+    silently include ratios flagged as scale-suspicious
+    (see validators.financial_validator.validate_ratio_plausibility).
+    """
+    sql = text(
+        """
+        SELECT ratio_name, value, unit, source_concept
+        FROM ratios
+        WHERE period_id = :period_id AND needs_validation = FALSE
+        """
+    )
+    return session.execute(sql, {"period_id": period_id}).mappings().all()
 
 
 def insert_data_quality_log(session, record: dict):

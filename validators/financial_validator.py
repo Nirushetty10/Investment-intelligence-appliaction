@@ -17,6 +17,12 @@ class ValidationIssue:
     check_name: str
     severity: str   # ERROR / WARNING / INFO
     message: str
+    # Structured identifier of what this issue is about (e.g. a ratio_name
+    # for ratio_scale_plausibility) — set when applicable, so callers never
+    # need to parse `message` text to find out which ratio/field triggered
+    # this (ISSUE 6: nse_financials_pipeline.process_filing needs this to
+    # set ratios.needs_validation per-ratio without fragile string parsing).
+    subject: str = None
 
 
 def _within_tolerance(a: Decimal, b: Decimal, tolerance_pct: Decimal = DEFAULT_TOLERANCE_PCT) -> bool:
@@ -249,6 +255,7 @@ def validate_ratio_plausibility(ratios: list) -> list:
                     f"stored exactly as declared in the source — no scaling has been "
                     f"applied. Verify against the filing's presentation document "
                     f"before using this figure.",
+                    subject=name,
                 )
             )
     return issues

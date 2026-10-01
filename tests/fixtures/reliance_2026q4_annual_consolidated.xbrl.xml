@@ -68,8 +68,16 @@
 
 <!-- Filing-level metadata, tagged on the ANNUAL context (statement_type
      resolution must remain unaffected by the period-resolution fix). -->
+<!-- ISSUE (found against the real filing_id=9): NSE repeats the SAME
+     metadata disclosure on BOTH the annual context AND the Q4-only
+     context — both non-dimensioned. This is what broke the old
+     "exactly one non-dimensioned match in the whole document" check in
+     _resolve_text_metadata, returning None even though both tags agree.
+     Reproduced here deliberately on purpose. -->
 <in-capmkt:NatureOfReportStandaloneConsolidated contextRef="AnnualD">Consolidated</in-capmkt:NatureOfReportStandaloneConsolidated>
+<in-capmkt:NatureOfReportStandaloneConsolidated contextRef="Q4D">Consolidated</in-capmkt:NatureOfReportStandaloneConsolidated>
 <in-capmkt:WhetherResultsAreAuditedOrUnaudited contextRef="AnnualD">Audited</in-capmkt:WhetherResultsAreAuditedOrUnaudited>
+<in-capmkt:WhetherResultsAreAuditedOrUnaudited contextRef="Q4D">Audited</in-capmkt:WhetherResultsAreAuditedOrUnaudited>
 <in-capmkt:ReportingQuarter contextRef="Q4D">Fourth quarter</in-capmkt:ReportingQuarter>
 
 <!-- Full-year income-statement figures (annual context) -->
@@ -90,7 +98,20 @@
 <in-capmkt:SegmentRevenue contextRef="AnnualD_O2CSegment" unitRef="INR" decimals="-5">810000000000</in-capmkt:SegmentRevenue>
 <in-capmkt:SegmentRevenue contextRef="Q4D_O2CSegment" unitRef="INR" decimals="-5">210000000000</in-capmkt:SegmentRevenue>
 
-<!-- Balance-sheet-style instant fact, current year-end. -->
+<!-- Balance-sheet instant facts, current year-end (ISSUE 5: proves the
+     expanded BALANCE_SHEET_CONCEPT_MAP actually resolves real standard
+     concepts — Assets, Liabilities, Equity, PPE, Cash, Borrowings,
+     Receivables, Payables, Investments — once a filing's XBRL contains
+     them, which this quarterly-style RELIANCE filing otherwise doesn't). -->
 <in-capmkt:PaidUpValueOfEquityShareCapital contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">135330000000</in-capmkt:PaidUpValueOfEquityShareCapital>
+<in-capmkt:OtherEquity contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">820000000000</in-capmkt:OtherEquity>
+<in-capmkt:Assets contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">1680000000000</in-capmkt:Assets>
+<in-capmkt:EquityAndLiabilities contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">1680000000000</in-capmkt:EquityAndLiabilities>
+<in-capmkt:PropertyPlantAndEquipment contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">610000000000</in-capmkt:PropertyPlantAndEquipment>
+<in-capmkt:CashAndCashEquivalents contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">215000000000</in-capmkt:CashAndCashEquivalents>
+<in-capmkt:BorrowingsNoncurrent contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">305000000000</in-capmkt:BorrowingsNoncurrent>
+<in-capmkt:TradeReceivablesCurrent contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">38000000000</in-capmkt:TradeReceivablesCurrent>
+<in-capmkt:TradePayablesCurrent contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">97000000000</in-capmkt:TradePayablesCurrent>
+<in-capmkt:NoncurrentInvestments contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">142000000000</in-capmkt:NoncurrentInvestments>
 
 </xbrli:xbrl>
