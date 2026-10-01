@@ -106,6 +106,21 @@ from repositories.financial_repository import (
 from repositories.company_repository import get_or_create_company
 from reporting.filing_coverage import build_coverage_report, format_coverage_report
 
+# ISSUE 1/2 fix (filing_id=9): period_start, period_type, financial_quarter
+# and financial_year are now resolved TOGETHER by one canonical resolver
+# instead of independently/registry-blindly. _derive_period_start_from_document
+# and _quarter_code_from_dates are re-exported here (not redefined) so
+# existing code / tests that do
+# `from nse_financials_pipeline import _derive_period_start_from_document`
+# keep working completely unchanged — resolve_canonical_period is the new
+# entry point process_filing() actually uses.
+from resolvers.period_resolver import (
+    ResolvedPeriod,
+    resolve_canonical_period,
+    _derive_period_start_from_document,
+    _quarter_code_from_dates,
+)
+
 from sources.nse_source import (
     NSEClient,
     NSEFetchError,
@@ -393,60 +408,6 @@ def run_discovery_for_symbol(
         )
 
 
-def _derive_period_start_from_document(doc, period_end: date) -> Optional[date]:
-    """
-    ISSUE (found in live run): the NSE discovery catalog for filing 7 does
-    not supply a period_start_date at all (nse_filing_registry.period_start_date
-    is nullable and was NULL), but financial_periods.period_start_date is
-    NOT NULL. Rather than invent a date or assume "3 months before period
-    end" blindly, derive it from the filing's OWN disclosed XBRL context —
-    the whole-company (non-dimensioned) duration context whose period_end
-    matches the target period is the source's own statement of when that
-    period started. This is reading a fact already in the source, not
-    guessing.
-
-    Returns None (never a guessed date) if zero or more than one distinct
-    period_start value is found among matching non-dimensioned duration
-    contexts — an ambiguous result must not be silently resolved.
-    """
-    candidates = set()
-    for ctx in doc.contexts.values():
-        if ctx.has_dimensions or ctx.is_instant:
-            continue
-        if ctx.period_end == period_end and ctx.period_start is not None:
-            candidates.add(ctx.period_start)
-    if len(candidates) == 1:
-        return candidates.pop()
-    return None
-
-
-def _quarter_code_from_dates(period_type: str, period_start: Optional[date], period_end: Optional[date]) -> Optional[str]:
-    """
-    ISSUE (found in live run): financial_periods.financial_quarter is
-    VARCHAR(4) (meant to hold "Q1".."Q4"), but the XBRL ReportingQuarter
-    concept is free text ("First quarter", "Second quarter", ...) that
-    varies by filer and overflows the column.
-
-    Rather than parse that free text (fragile — wording isn't standardized
-    across companies/filings) or truncate it (lossy and misleading), the
-    quarter is derived deterministically from the period's own calendar
-    dates, which are exact facts already present in the source. Indian
-    listed companies report on an April-March fiscal year, so:
-        Apr-Jun -> Q1, Jul-Sep -> Q2, Oct-Dec -> Q3, Jan-Mar -> Q4
-    This is date arithmetic on disclosed dates, not a guessed or invented
-    financial value. The original free-text disclosure is NOT lost — it
-    remains verbatim in xbrl_facts (every fact is stored there regardless
-    of normalization outcome) and in nse_filing_registry.catalog_json.
-
-    Returns None for annual periods or when period_end is unavailable —
-    never a guessed quarter.
-    """
-    if period_type != "quarterly" or period_end is None:
-        return None
-    month_to_quarter = {4: "Q1", 5: "Q1", 6: "Q1", 7: "Q2", 8: "Q2", 9: "Q2",
-                         10: "Q3", 11: "Q3", 12: "Q3", 1: "Q4", 2: "Q4", 3: "Q4"}
-    return month_to_quarter.get(period_end.month)
-
 
 def process_filing(client: NSEClient, session, filing_id: int) -> dict:
     """
@@ -609,29 +570,36 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
     summary["facts_stored"] = stored_fact_count
     summary["source_format"] = doc.source_format
 
-    # ---------------- NORMALIZE ----------------
+    # ---------------- RESOLVE CANONICAL PERIOD (ISSUE 1/2 fix) ----------------
+    # period_start, period_type, financial_quarter and financial_year are
+    # now resolved TOGETHER from the filing's own XBRL contexts, with
+    # registry metadata (period_type, period_start_date, submission_type)
+    # used as corroborating/cross-checked signals rather than a blind
+    # override — see resolvers/period_resolver.py for the full reasoning.
+    # This is what fixes filing_id=9 (registry says "quarterly", but an
+    # audited filing + an annual-length duration context in its own XBRL
+    # means the canonical period is annual).
     period_end = filing["period_end_date"]
-    period_start = filing["period_start_date"]
-    if period_start is None:
-        # See _derive_period_start_from_document docstring: discovery's
-        # catalog row didn't supply this (observed live for filing 7) —
-        # read it from the document's own disclosed context instead of
-        # leaving it NULL (which financial_periods forbids) or guessing.
-        period_start = _derive_period_start_from_document(doc, period_end)
-        if period_start is not None:
-            logger.info(
-                "filing_id=%s: period_start_date not in registry catalog; "
-                "derived %s from the filing's own XBRL context.",
-                filing_id, period_start,
-            )
-        else:
-            logger.warning(
-                "filing_id=%s: period_start_date missing from registry AND "
-                "could not be unambiguously derived from the document's "
-                "contexts — normalization/period lookups depending on an "
-                "exact period_start may under-resolve.",
-                filing_id,
-            )
+    resolved = resolve_canonical_period(doc, filing)
+    period_start = resolved.period_start
+
+    if resolved.conflict:
+        logger.warning("filing_id=%s period-resolution conflict: %s", filing_id, resolved.resolution_reason)
+    else:
+        logger.info("filing_id=%s period resolution: %s", filing_id, resolved.resolution_reason)
+
+    if period_start is None or resolved.period_type is None:
+        update_filing_status(session, filing_id, normalization_status="PARTIAL")
+        summary["error"] = (
+            "period_start_date and/or period_type could not be unambiguously resolved "
+            f"from this filing's own XBRL contexts or registry metadata: {resolved.resolution_reason} "
+            "Normalized period cannot be stored without inventing a date/type. "
+            "Context/fact/unit rows ARE stored (see contexts_stored/facts_stored above); "
+            "only the financial_periods/income_statement/ratios persistence step was skipped."
+        )
+        logger.error("filing_id=%s: %s", filing_id, summary["error"])
+        return summary
+
     try:
         result = normalize(doc, period_end=period_end, period_start=period_start)
     except Exception as exc:  # noqa: BLE001 — must record, not crash the run
@@ -639,9 +607,49 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
         summary["error"] = f"Normalization failed: {exc}"
         logger.error("filing_id=%s normalization failed: %s", filing_id, exc)
         return summary
-    update_filing_status(session, filing_id, normalization_status="SUCCESS")
+    # ISSUE 8 fix: normalization_status is NOT set to SUCCESS here anymore.
+    # normalize() succeeding only means the in-memory computation worked —
+    # it says nothing about whether financial_periods/income_statement/
+    # balance_sheet/cashflow_statement/ratios actually got persisted. The
+    # status is now set only after the STORE block below completes without
+    # exception (see "STORE normalized", further down).
     summary["statement_type_resolved"] = result.period.statement_type
     summary["unmapped_fact_count"] = result.unmapped_fact_count
+    summary["period_type_resolved"] = resolved.period_type
+    summary["period_type_registry"] = resolved.registry_period_type
+    summary["period_resolution_conflict"] = resolved.conflict
+    summary["period_resolution_reason"] = resolved.resolution_reason
+
+    # Idempotent reprocessing (same reasoning as the xbrl_facts wipe
+    # earlier): data_quality_log has no unique constraint, so reprocessing
+    # this filing would otherwise duplicate every log entry on each run.
+    # This single cleanup covers BOTH the period-resolution-conflict entry
+    # below and the validation-issue entries further down — moved here
+    # (once, up front) rather than repeated per-section.
+    session.execute(text("DELETE FROM data_quality_log WHERE filing_id = :fid"), {"fid": filing_id})
+
+    # ISSUE 6: record registry-vs-source disagreement for audit, without
+    # ever overwriting the registry's own period_type/period_start_date
+    # columns in nse_filing_registry (those stay exactly as discovery
+    # wrote them — only this log entry and the financial_periods row use
+    # the resolved/canonical value).
+    if resolved.conflict:
+        insert_data_quality_log(
+            session,
+            {
+                "filing_id": filing_id,
+                "period_id": None,
+                "check_name": "period_resolution_conflict",
+                "severity": "WARNING",
+                "message": resolved.resolution_reason,
+                "details_json": {
+                    "registry_period_type": resolved.registry_period_type,
+                    "registry_period_start": str(resolved.registry_period_start) if resolved.registry_period_start else None,
+                    "resolved_period_type": resolved.period_type,
+                    "resolved_period_start": str(resolved.period_start) if resolved.period_start else None,
+                },
+            },
+        )
 
     # ---------------- VALIDATE ----------------
     issues = validate_income_statement(result.income_statement)
@@ -653,12 +661,9 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
         {"check": i.check_name, "severity": i.severity, "message": i.message} for i in issues
     ]
 
-    # Same idempotency reasoning as the xbrl_facts wipe above:
-    # data_quality_log has no unique constraint either, so reprocessing
-    # this filing would otherwise duplicate every validation issue row on
-    # each run. Replace this filing's log entries cleanly instead.
-    session.execute(text("DELETE FROM data_quality_log WHERE filing_id = :fid"), {"fid": filing_id})
-
+    # (data_quality_log for this filing_id was already cleared once, up
+    # above, right before the period-resolution-conflict entry — not
+    # repeated here, or it would delete that entry too.)
     for issue in issues:
         insert_data_quality_log(
             session,
@@ -672,66 +677,77 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
             },
         )
 
-    # ---------------- STORE normalized ----------------
-    if period_start is None:
-        # financial_periods.period_start_date is NOT NULL — do not attempt
-        # an insert that we know will fail, and do not guess a date just to
-        # satisfy the schema. Record exactly why storage stopped here.
-        update_filing_status(session, filing_id, normalization_status="PARTIAL")
+    # ---------------- STORE normalized (ISSUE 8: atomic + status-after-commit) ----------------
+    # Everything in this block is wrapped in one SAVEPOINT (session.begin_nested)
+    # so that a failure partway through (e.g. income_statement insert
+    # succeeds but a later balance_sheet/ratio insert throws) rolls back
+    # ONLY this filing's normalized-persistence attempt — not the raw
+    # xbrl_contexts/xbrl_facts/raw_filings rows already staged earlier in
+    # this same session for this filing (ISSUE 12: never discard raw data
+    # as a side effect of a later failure). normalization_status is set to
+    # SUCCESS only after this block completes without exception; on
+    # failure it is FAILED, and NOTHING here is left half-persisted inside
+    # the database (the savepoint rolls back cleanly).
+    period_id = None
+    company_id = None
+    coverage_report = None
+    persistence_exc = None
+
+    try:
+        with session.begin_nested():
+            company_id = get_or_create_company(session, filing["symbol"], filing.get("company_name"))
+            period_id = upsert_financial_period(
+                session,
+                {
+                    "company_id": company_id,
+                    # Canonical, source-cross-checked period_type — NOT
+                    # filing["period_type"] (the raw, possibly-wrong
+                    # registry value). This is the actual fix for
+                    # filing_id=9 persisting as "quarterly".
+                    "period_type": resolved.period_type,
+                    "statement_type": result.period.statement_type or filing["statement_type"],
+                    "period_start_date": period_start,
+                    "period_end_date": period_end,
+                    "financial_year": resolved.financial_year,
+                    "financial_quarter": resolved.financial_quarter,
+                    "source_filing_id": filing_id,
+                    "source": filing["source_kind"],
+                },
+            )
+            upsert_income_statement(session, period_id, result.income_statement, result.period.unit)
+            for ratio in result.ratios:
+                insert_ratio(session, period_id, ratio)
+
+            # ISSUE 2 (mapping-coverage fix): only persist balance_sheet /
+            # cashflow_statement when the filing actually reports them.
+            if result.balance_sheet_coverage == "AVAILABLE":
+                upsert_balance_sheet(session, period_id, result.balance_sheet, result.period.unit)
+            if result.cashflow_statement_coverage == "AVAILABLE":
+                upsert_cashflow_statement(session, period_id, result.cashflow_statement, result.period.unit)
+    except Exception as exc:  # noqa: BLE001 — must record, not crash the run
+        persistence_exc = exc
+
+    if persistence_exc is not None:
+        update_filing_status(session, filing_id, normalization_status="FAILED")
         summary["error"] = (
-            "period_start_date is unavailable (not in registry catalog, and "
-            "not unambiguously derivable from the document's own contexts) — "
-            "normalized period cannot be stored without inventing a date. "
-            "Context/fact/unit rows ARE stored (see contexts_stored/facts_stored "
-            "above); only the financial_periods/income_statement/ratios "
-            "persistence step was skipped."
+            f"Normalized persistence failed and was rolled back (financial_periods/"
+            f"income_statement/balance_sheet/cashflow_statement/ratios for this filing "
+            f"are NOT partially written): {persistence_exc}"
         )
         logger.error("filing_id=%s: %s", filing_id, summary["error"])
         return summary
 
-    company_id = get_or_create_company(session, filing["symbol"], filing.get("company_name"))
-    financial_year = filing.get("financial_year") or (
-        f"{period_end.year - 1}-{str(period_end.year)[-2:]}"
-        if period_end.month < 4
-        else f"{period_end.year}-{str(period_end.year + 1)[-2:]}"
-    )
-    quarter_code = _quarter_code_from_dates(filing["period_type"], period_start, period_end)
-    period_id = upsert_financial_period(
-        session,
-        {
-            "company_id": company_id,
-            "period_type": filing["period_type"],
-            "statement_type": result.period.statement_type or filing["statement_type"],
-            "period_start_date": period_start,
-            "period_end_date": period_end,
-            "financial_year": financial_year,
-            "financial_quarter": quarter_code,
-            "source_filing_id": filing_id,
-            "source": filing["source_kind"],
-        },
-    )
-    upsert_income_statement(session, period_id, result.income_statement, result.period.unit)
-    for ratio in result.ratios:
-        insert_ratio(session, period_id, ratio)
-
-    # ISSUE 2 (mapping-coverage fix): only persist balance_sheet /
-    # cashflow_statement when the filing actually reports them. A
-    # quarterly result genuinely NOT containing a balance sheet is normal,
-    # not an error — writing an all-NULL (or worse, fabricated-zero) row
-    # would misrepresent "the filing doesn't report this" as "we tried and
-    # got nothing", so we skip the insert entirely rather than write an
-    # empty row.
-    if result.balance_sheet_coverage == "AVAILABLE":
-        upsert_balance_sheet(session, period_id, result.balance_sheet, result.period.unit)
-    if result.cashflow_statement_coverage == "AVAILABLE":
-        upsert_cashflow_statement(session, period_id, result.cashflow_statement, result.period.unit)
+    # Only now — after financial_periods, income_statement, ratios, and any
+    # applicable balance_sheet/cashflow_statement rows are actually
+    # persisted — is normalization considered SUCCESS.
+    update_filing_status(session, filing_id, normalization_status="SUCCESS")
 
     # ISSUE 6: per-filing coverage report — makes source-data-availability
     # (AVAILABLE / NOT_REPORTED_IN_FILING) visibly separate from mapping
     # completeness (mapped / intentionally-unmapped / unmapped-financial
     # fact counts), so a reviewer never has to guess which one a number
     # like "108 unmapped" was actually describing.
-    coverage_report = build_coverage_report(filing["symbol"], financial_year, result)
+    coverage_report = build_coverage_report(filing["symbol"], resolved.financial_year, result)
     summary["coverage_report"] = format_coverage_report(coverage_report)
     summary["mapped_facts"] = coverage_report.mapped_facts
     summary["intentionally_unmapped_facts"] = coverage_report.intentionally_unmapped_facts
@@ -743,6 +759,8 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
 
     summary["period_id"] = period_id
     summary["company_id"] = company_id
+    summary["financial_year"] = resolved.financial_year
+    summary["financial_quarter"] = resolved.financial_quarter
     summary["status"] = "COMPLETE"
     return summary
 

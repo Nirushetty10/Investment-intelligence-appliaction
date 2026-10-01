@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><!--Reconstructed fixture for filing_id=9 period-resolution regression (see tests/test_period_resolution.py). Provenance: this is NOT the literal byte-for-byte NSE download — I do not have that file — it is built to match the exact context structure reported for filing_id=9 (15 annual-duration contexts, 27 Q4-duration contexts, 1 prior-year instant, 22 current-year instants), using genuine XBRL markup and the same taxonomy/style as the real tests/fixtures/reliance_2026q1_consolidated.xbrl.xml fixture, so the resolver logic is exercised against a structurally faithful reproduction of the reported bug.--><xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:in-capmkt="http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:xbrldi="http://xbrl.org/2006/xbrldi">
+<link:schemaRef xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="in-capmkt-ent-2026-01-31.xsd" xlink:type="simple"/>
+
+<!-- Non-dimensioned ANNUAL duration context: 2025-04-01 -> 2026-03-31.
+     This is the one the resolver must select for an annual filing. -->
+<xbrli:context id="AnnualD">
+  <xbrli:entity><xbrli:identifier scheme="http://www.sebi.gov.in/in-capmkt/ScripCode">500325</xbrli:identifier></xbrli:entity>
+  <xbrli:period><xbrli:startDate>2025-04-01</xbrli:startDate><xbrli:endDate>2026-03-31</xbrli:endDate></xbrli:period>
+</xbrli:context>
+
+<!-- Non-dimensioned Q4-ONLY duration context: 2026-01-01 -> 2026-03-31.
+     Same period_end as AnnualD above — this is exactly the ambiguity
+     that broke the old resolver. Must NOT be selected for an annual filing. -->
+<xbrli:context id="Q4D">
+  <xbrli:entity><xbrli:identifier scheme="http://www.sebi.gov.in/in-capmkt/ScripCode">500325</xbrli:identifier></xbrli:entity>
+  <xbrli:period><xbrli:startDate>2026-01-01</xbrli:startDate><xbrli:endDate>2026-03-31</xbrli:endDate></xbrli:period>
+</xbrli:context>
+
+<!-- Instant context: prior year-end balance sheet date. Must be excluded
+     from duration-context candidates entirely (it is not a duration). -->
+<xbrli:context id="InstantPriorYear">
+  <xbrli:entity><xbrli:identifier scheme="http://www.sebi.gov.in/in-capmkt/ScripCode">500325</xbrli:identifier></xbrli:entity>
+  <xbrli:period><xbrli:instant>2025-03-31</xbrli:instant></xbrli:period>
+</xbrli:context>
+
+<!-- Instant context: current year-end balance sheet date. Also excluded
+     from duration candidates. Real filing has 22 of these (one per BS
+     line item); one is enough to exercise the exclusion logic. -->
+<xbrli:context id="InstantCurrentYear">
+  <xbrli:entity><xbrli:identifier scheme="http://www.sebi.gov.in/in-capmkt/ScripCode">500325</xbrli:identifier></xbrli:entity>
+  <xbrli:period><xbrli:instant>2026-03-31</xbrli:instant></xbrli:period>
+</xbrli:context>
+
+<!-- DIMENSIONED duration context sharing the SAME dates as AnnualD
+     (a segment breakdown for the full year). Must be excluded from
+     candidates purely because it is dimensioned, even though its dates
+     match exactly (requirement 4). -->
+<xbrli:context id="AnnualD_O2CSegment">
+  <xbrli:entity>
+    <xbrli:identifier scheme="http://www.sebi.gov.in/in-capmkt/ScripCode">500325</xbrli:identifier>
+    <xbrli:segment>
+      <xbrldi:explicitMember dimension="in-capmkt:SegmentsAxis">in-capmkt:OilToChemicalsMember</xbrldi:explicitMember>
+    </xbrli:segment>
+  </xbrli:entity>
+  <xbrli:period><xbrli:startDate>2025-04-01</xbrli:startDate><xbrli:endDate>2026-03-31</xbrli:endDate></xbrli:period>
+</xbrli:context>
+
+<!-- DIMENSIONED duration context sharing the SAME dates as Q4D (a segment
+     breakdown for Q4 only). Same exclusion requirement. -->
+<xbrli:context id="Q4D_O2CSegment">
+  <xbrli:entity>
+    <xbrli:identifier scheme="http://www.sebi.gov.in/in-capmkt/ScripCode">500325</xbrli:identifier>
+    <xbrli:segment>
+      <xbrldi:explicitMember dimension="in-capmkt:SegmentsAxis">in-capmkt:OilToChemicalsMember</xbrldi:explicitMember>
+    </xbrli:segment>
+  </xbrli:entity>
+  <xbrli:period><xbrli:startDate>2026-01-01</xbrli:startDate><xbrli:endDate>2026-03-31</xbrli:endDate></xbrli:period>
+</xbrli:context>
+
+<xbrli:unit id="INR"><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unit>
+<xbrli:unit id="INRPerShare">
+  <xbrli:divide>
+    <xbrli:unitNumerator><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unitNumerator>
+    <xbrli:unitDenominator><xbrli:measure>shares</xbrli:measure></xbrli:unitDenominator>
+  </xbrli:divide>
+</xbrli:unit>
+<xbrli:unit id="pure"><xbrli:measure>pure</xbrli:measure></xbrli:unit>
+
+<!-- Filing-level metadata, tagged on the ANNUAL context (statement_type
+     resolution must remain unaffected by the period-resolution fix). -->
+<in-capmkt:NatureOfReportStandaloneConsolidated contextRef="AnnualD">Consolidated</in-capmkt:NatureOfReportStandaloneConsolidated>
+<in-capmkt:WhetherResultsAreAuditedOrUnaudited contextRef="AnnualD">Audited</in-capmkt:WhetherResultsAreAuditedOrUnaudited>
+<in-capmkt:ReportingQuarter contextRef="Q4D">Fourth quarter</in-capmkt:ReportingQuarter>
+
+<!-- Full-year income-statement figures (annual context) -->
+<in-capmkt:RevenueFromOperations contextRef="AnnualD" unitRef="INR" decimals="-5">1290000000000</in-capmkt:RevenueFromOperations>
+<in-capmkt:ProfitBeforeTax contextRef="AnnualD" unitRef="INR" decimals="-5">1150000000000</in-capmkt:ProfitBeforeTax>
+<in-capmkt:TaxExpense contextRef="AnnualD" unitRef="INR" decimals="-5">290000000000</in-capmkt:TaxExpense>
+<in-capmkt:ProfitLossForPeriod contextRef="AnnualD" unitRef="INR" decimals="-5">860000000000</in-capmkt:ProfitLossForPeriod>
+<in-capmkt:BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations contextRef="AnnualD" unitRef="INRPerShare" decimals="2">63.40</in-capmkt:BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations>
+
+<!-- Q4-only income-statement figures (Q4 context) — deliberately DIFFERENT
+     values from the annual ones above, so a test can confirm the resolver
+     didn't accidentally mix them up. -->
+<in-capmkt:RevenueFromOperations contextRef="Q4D" unitRef="INR" decimals="-5">340000000000</in-capmkt:RevenueFromOperations>
+<in-capmkt:ProfitBeforeTax contextRef="Q4D" unitRef="INR" decimals="-5">300000000000</in-capmkt:ProfitBeforeTax>
+
+<!-- Segment (dimensioned) figures — same dates as annual/Q4, must never
+     be picked up as company-wide totals for either period. -->
+<in-capmkt:SegmentRevenue contextRef="AnnualD_O2CSegment" unitRef="INR" decimals="-5">810000000000</in-capmkt:SegmentRevenue>
+<in-capmkt:SegmentRevenue contextRef="Q4D_O2CSegment" unitRef="INR" decimals="-5">210000000000</in-capmkt:SegmentRevenue>
+
+<!-- Balance-sheet-style instant fact, current year-end. -->
+<in-capmkt:PaidUpValueOfEquityShareCapital contextRef="InstantCurrentYear" unitRef="INR" decimals="-5">135330000000</in-capmkt:PaidUpValueOfEquityShareCapital>
+
+</xbrli:xbrl>
