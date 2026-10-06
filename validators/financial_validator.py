@@ -169,9 +169,29 @@ def _validate_profit_reconciliation(stmt: dict) -> list:
 
 
 def validate_balance_sheet(stmt: dict) -> list:
+    """
+    Two independent checks:
+
+    1. "balance_sheet_reconciliation" (existing): Total Assets vs the
+       combined Equity+Liabilities balancing total (total_liabilities,
+       which maps ONLY to the "EquityAndLiabilities" concept — see
+       concept_map.py's comment on why bare "Liabilities" was removed as
+       an alias for this field). This is the loosest, most-often-available
+       check (just needs the two grand totals).
+
+    2. "balance_sheet_three_way_reconciliation" (new): the literal
+       Assets = Equity + Liabilities identity requested, using the
+       supplementary total_equity and total_liabilities_excl_equity
+       fields (mapped from the "Equity" and bare "Liabilities" concepts
+       respectively — see BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS). Only
+       runs when BOTH of those are available; ERROR-level since, when
+       available, there's no legitimate accounting reason for this not
+       to reconcile (unlike the income-statement profit bridge, there's
+       no NCI-style allocation ambiguity here).
+    """
     issues = []
     total_assets = stmt.get("total_assets")
-    total_liabilities = stmt.get("total_liabilities")  # expected to include equity per schema note
+    total_liabilities = stmt.get("total_liabilities")  # EquityAndLiabilities combined total only
     if total_assets is not None and total_liabilities is not None:
         if not _within_tolerance(total_assets, total_liabilities):
             issues.append(
@@ -185,10 +205,47 @@ def validate_balance_sheet(stmt: dict) -> list:
         issues.append(
             ValidationIssue("balance_sheet_reconciliation", "INFO", "Skipped: total_assets or total_liabilities not available")
         )
+
+    total_equity = stmt.get("total_equity")
+    total_liabilities_excl_equity = stmt.get("total_liabilities_excl_equity")
+    if total_assets is not None and total_equity is not None and total_liabilities_excl_equity is not None:
+        expected = total_equity + total_liabilities_excl_equity
+        if not _within_tolerance(total_assets, expected):
+            issues.append(
+                ValidationIssue(
+                    "balance_sheet_three_way_reconciliation",
+                    "ERROR",
+                    f"Equity ({total_equity}) + Liabilities ({total_liabilities_excl_equity}) = "
+                    f"{expected}, but Total Assets reported as {total_assets}",
+                )
+            )
+    else:
+        issues.append(
+            ValidationIssue(
+                "balance_sheet_three_way_reconciliation", "INFO",
+                "Skipped: total_assets, total_equity, or total_liabilities_excl_equity not available "
+                "(filing may not separately disclose bare Equity/Liabilities subtotals)",
+            )
+        )
+
     return issues
 
 
 def validate_cashflow(stmt: dict) -> list:
+    """
+    Two independent checks:
+
+    1. "cashflow_reconciliation" (existing): Opening + Net Change = Closing.
+
+    2. "cashflow_components_reconciliation" (new, per explicit request):
+       CFO + CFI + CFF (+ FX, when disclosed) should reconcile with the
+       reported net change in cash. When fx_effect_on_cash IS available,
+       a mismatch is a real ERROR (full evidence, no missing variable to
+       excuse it). When FX is NOT disclosed, a mismatch is only a WARNING
+       — an undisclosed FX effect on foreign-currency cash balances is a
+       completely ordinary, legitimate reason for CFO+CFI+CFF alone not
+       to exactly equal the net change.
+    """
     issues = []
     opening = stmt.get("opening_cash_balance")
     closing = stmt.get("closing_cash_balance")
@@ -208,6 +265,38 @@ def validate_cashflow(stmt: dict) -> list:
         issues.append(
             ValidationIssue("cashflow_reconciliation", "INFO", "Skipped: opening/closing/net-change not all available")
         )
+
+    cfo = stmt.get("cfo")
+    cfi = stmt.get("cfi")
+    cff = stmt.get("cff")
+    fx = stmt.get("fx_effect_on_cash")
+    if cfo is not None and cfi is not None and cff is not None and net_change is not None:
+        components_total = cfo + cfi + cff + (fx or Decimal(0))
+        if not _within_tolerance(components_total, net_change):
+            severity = "ERROR" if fx is not None else "WARNING"
+            fx_desc = f"+ FX effect ({fx})" if fx is not None else "(no FX effect disclosed)"
+            note = (
+                "" if fx is not None else
+                " An undisclosed foreign-exchange effect on cash balances is a legitimate, "
+                "ordinary explanation for this gap — verify against raw facts before treating "
+                "as an error."
+            )
+            issues.append(
+                ValidationIssue(
+                    "cashflow_components_reconciliation",
+                    severity,
+                    f"CFO ({cfo}) + CFI ({cfi}) + CFF ({cff}) {fx_desc} = {components_total}, "
+                    f"but reported net change in cash is {net_change}.{note}",
+                )
+            )
+    else:
+        issues.append(
+            ValidationIssue(
+                "cashflow_components_reconciliation", "INFO",
+                "Skipped: cfo, cfi, cff, or net_change_in_cash not all available",
+            )
+        )
+
     return issues
 
 

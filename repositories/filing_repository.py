@@ -218,10 +218,10 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
     # -----------------------------------------------------------------------
     # Normal insert/upsert.
     #
-    # Existing natural key:
+    # Natural key (ISSUE 2 — period_type intentionally excluded; see
+    # db/schema.sql's nse_filing_registry_natural_key constraint comment):
     #     symbol
     #     period_end_date
-    #     period_type
     #     statement_type
     #     broadcast_date
     #     source_kind
@@ -287,10 +287,15 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
             :discovery_status
         )
 
+        -- ISSUE 2: period_type deliberately excluded from the conflict
+        -- target — it's our own derived classification, not stable NSE
+        -- filing identity (see db/schema.sql's
+        -- nse_filing_registry_natural_key constraint comment). Matches
+        -- that constraint's columns exactly, which is required for
+        -- Postgres to use it as the ON CONFLICT target.
         ON CONFLICT (
             symbol,
             period_end_date,
-            period_type,
             statement_type,
             broadcast_date,
             source_kind
@@ -300,6 +305,12 @@ def upsert_filing_registry_entry(session, entry: dict) -> int:
             company_id = EXCLUDED.company_id,
             company_name = EXCLUDED.company_name,
             period_start_date = EXCLUDED.period_start_date,
+            -- ISSUE 2: period_type now actually gets updated on a repeat
+            -- discovery run (it was previously part of the conflict
+            -- target but MISSING from this SET list, so even a matching
+            -- conflict would never refresh a reclassified period_type on
+            -- the existing row).
+            period_type = EXCLUDED.period_type,
             reporting_quarter = EXCLUDED.reporting_quarter,
             financial_year = EXCLUDED.financial_year,
             submission_type = EXCLUDED.submission_type,

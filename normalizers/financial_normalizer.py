@@ -25,7 +25,10 @@ from typing import Optional
 
 from normalizers.concept_map import (
     BALANCE_SHEET_CONCEPT_MAP,
+    BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS,
     CASHFLOW_CONCEPT_MAP,
+    CASHFLOW_SUPPLEMENTARY_CONCEPTS,
+    DETAIL_COMPONENT_CONCEPTS,
     INCOME_STATEMENT_CONCEPT_MAP,
     INCOME_STATEMENT_SUPPLEMENTARY_CONCEPTS,
     METADATA_CONCEPTS,
@@ -225,8 +228,26 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
         value, _ = _resolve_field(doc, candidates, period_end, None)
         balance_sheet[field_name] = value
 
+    # Balance-sheet SUBTOTAL concepts (CurrentAssets, Equity, bare
+    # Liabilities, etc.) — same non-persisted-extra-key mechanism as the
+    # income-statement supplementary fields: merged into the same
+    # `balance_sheet` dict, never written to a new DB column, used for
+    # reconciliation (validate_balance_sheet's three-way
+    # Assets = Equity + Liabilities check) and traceability.
+    for field_name, candidates in BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS.items():
+        value, _ = _resolve_field(doc, candidates, period_end, None)
+        balance_sheet[field_name] = value
+
     cashflow_statement = {}
     for field_name, candidates in CASHFLOW_CONCEPT_MAP.items():
+        value, _ = _resolve_field(doc, candidates, period_end, period_start)
+        cashflow_statement[field_name] = value
+
+    # Cash-flow supplementary concepts (FX effect, interest/dividend
+    # received detail, equity issuance/buyback) — same mechanism, merged
+    # into `cashflow_statement`. fx_effect_on_cash specifically feeds the
+    # CFO + CFI + CFF + FX = net change in cash reconciliation.
+    for field_name, candidates in CASHFLOW_SUPPLEMENTARY_CONCEPTS.items():
         value, _ = _resolve_field(doc, candidates, period_end, period_start)
         cashflow_statement[field_name] = value
 
@@ -270,7 +291,9 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
     for m in (
         INCOME_STATEMENT_CONCEPT_MAP,
         BALANCE_SHEET_CONCEPT_MAP,
+        BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS,
         CASHFLOW_CONCEPT_MAP,
+        CASHFLOW_SUPPLEMENTARY_CONCEPTS,
         RECONCILIATION_BRIDGE_CONCEPTS,
         INCOME_STATEMENT_SUPPLEMENTARY_CONCEPTS,
     ):

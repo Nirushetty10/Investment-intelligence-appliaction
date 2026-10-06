@@ -83,6 +83,8 @@ from normalizers.financial_normalizer import normalize
 from validators.financial_validator import (
     overall_status,
     validate_income_statement,
+    validate_balance_sheet,
+    validate_cashflow,
     validate_ratio_plausibility,
 )
 
@@ -654,6 +656,17 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
     # ---------------- VALIDATE ----------------
     issues = validate_income_statement(result.income_statement)
     issues += validate_ratio_plausibility(result.ratios)
+    # ISSUE 6/7: these were defined but never actually invoked — a real
+    # gap, since "flag discrepancies rather than silently accepting them"
+    # requires the check to actually run. Gated on coverage so a filing
+    # that genuinely doesn't report a balance sheet / cash flow (normal
+    # for an Indian quarterly result) doesn't get flooded with "skipped,
+    # not available" INFO noise — see NormalizationResult.balance_sheet_coverage
+    # / cashflow_statement_coverage.
+    if result.balance_sheet_coverage == "AVAILABLE":
+        issues += validate_balance_sheet(result.balance_sheet)
+    if result.cashflow_statement_coverage == "AVAILABLE":
+        issues += validate_cashflow(result.cashflow_statement)
     status = overall_status(issues)
     update_filing_status(session, filing_id, validation_status=status)
     summary["validation_status"] = status

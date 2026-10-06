@@ -54,7 +54,14 @@ CREATE TABLE IF NOT EXISTS nse_filing_registry (
     period_end_date         DATE,
 
     period_type             VARCHAR(16) NOT NULL,    -- quarterly / annual
-    reporting_quarter       VARCHAR(4),               -- Q1..Q4, NULL for annual
+    -- Raw NSE catalog text verbatim (e.g. "First Quarter", "Fourth
+    -- Quarter", "Annual") for auditability — NOT the normalized Q1-Q4
+    -- code (that's financial_periods.financial_quarter, VARCHAR(4), a
+    -- different column on a different table). This was previously also
+    -- VARCHAR(4), which overflows on real NSE text and would crash
+    -- discovery for any filing whose catalog quarter field isn't
+    -- conveniently <=4 characters.
+    reporting_quarter       TEXT,
     financial_year          VARCHAR(9),               -- e.g. 2026-2027
 
     statement_type          VARCHAR(16) NOT NULL,    -- standalone / consolidated
@@ -87,20 +94,23 @@ CREATE TABLE IF NOT EXISTS nse_filing_registry (
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    UNIQUE (symbol, period_end_date, period_type, statement_type, broadcast_date, source_kind)
+    -- ISSUE 2: period_type is intentionally NOT part of this natural key.
+    -- It is OUR OWN derived/classified value (see
+    -- discovery/filing_discovery.py _classify_discovery_period_type),
+    -- not a stable NSE-provided filing identity attribute — including it
+    -- here previously meant that improving the classifier (or simply
+    -- re-running discovery after NSE's own catalog text changed) could
+    -- change a filing's period_type and cause a BRAND NEW row to be
+    -- inserted for the same real filing instead of updating the existing
+    -- one. The true identity of an NSE filing is symbol + the period it
+    -- covers + statement type + when it was broadcast + which source
+    -- produced it — period_type is downstream classification of that
+    -- filing, not part of what makes it unique.
+    CONSTRAINT nse_filing_registry_natural_key
+        UNIQUE (symbol, period_end_date, statement_type, broadcast_date, source_kind)
 );
 CREATE INDEX IF NOT EXISTS idx_registry_symbol_period ON nse_filing_registry (symbol, period_end_date);
 CREATE INDEX IF NOT EXISTS idx_registry_statuses ON nse_filing_registry (discovery_status, download_status, parse_status);
-
--- ISSUE 7: idempotent migration for databases created before ixbrl_url
--- existed. Safe to re-run: no-op if the column is already present (either
--- from this ALTER having run before, or because the CREATE TABLE above
--- already included it on a fresh install).
-ALTER TABLE nse_filing_registry ADD COLUMN IF NOT EXISTS ixbrl_url TEXT;
-
--- ISSUE 6: idempotent migration for databases created before
--- ratios.needs_validation existed. Safe to re-run.
-ALTER TABLE ratios ADD COLUMN IF NOT EXISTS needs_validation BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- ============================================================
 -- RAW STORAGE (never overwritten, never discarded)
@@ -454,3 +464,44 @@ CREATE TABLE IF NOT EXISTS ingestion_log (
 );
 CREATE INDEX IF NOT EXISTS idx_ingestion_log_run ON ingestion_log (run_id);
 CREATE INDEX IF NOT EXISTS idx_ingestion_log_company ON ingestion_log (company_id, stage, status);
+
+-- ============================================================
+-- MIGRATIONS
+-- ============================================================
+-- Every ALTER TABLE in this file lives here, in exactly one place, AFTER
+-- every CREATE TABLE above. This section exists specifically so this
+-- class of bug (an ALTER TABLE running against a table that doesn't
+-- exist yet on a fresh database — e.g. an earlier revision of this file
+-- had "ALTER TABLE ratios ..." positioned before "CREATE TABLE ratios")
+-- cannot happen again: db/connection.py init_schema() runs everything
+-- above this marker first, as one transaction, and only then runs
+-- everything from this marker onward, as a second transaction — so a
+-- migration can never execute before its target table exists, by
+-- construction, regardless of where in this file someone adds a new one
+-- (though "after this marker" is still required; see init_schema()'s
+-- docstring for the enforced ordering contract).
+--
+-- Every statement here MUST be:
+--   - idempotent (safe to run on a database that already has the change)
+--   - additive only (ADD COLUMN IF NOT EXISTS, CREATE INDEX IF NOT EXISTS,
+--     etc.) — never DROP/rename anything a running pipeline depends on
+--
+-- MIGRATIONS MARKER --
+
+-- Companion rendered-HTML document URL, kept separate from the
+-- authoritative machine-readable xbrl_url (see discovery/filing_discovery.py).
+ALTER TABLE nse_filing_registry ADD COLUMN IF NOT EXISTS ixbrl_url TEXT;
+
+-- Flags a ratio as scale-suspicious (raw value preserved unchanged) so
+-- downstream fundamental/ML features can exclude it via
+-- repositories.financial_repository.get_validated_ratios.
+ALTER TABLE ratios ADD COLUMN IF NOT EXISTS needs_validation BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- reporting_quarter was originally VARCHAR(4) (meant for a short code),
+-- but this column actually stores NSE's raw catalog quarter text
+-- verbatim (e.g. "First Quarter") for auditability — widening to TEXT so
+-- real NSE text doesn't overflow and crash discovery. ALTER COLUMN TYPE
+-- is itself idempotent (a no-op if already TEXT) and, since TEXT is a
+-- strict superset of varchar(4) with no length restriction, this never
+-- truncates or loses any value already stored.
+ALTER TABLE nse_filing_registry ALTER COLUMN reporting_quarter TYPE TEXT;

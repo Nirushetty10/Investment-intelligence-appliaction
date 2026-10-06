@@ -119,24 +119,56 @@ INCOME_STATEMENT_SUPPLEMENTARY_CONCEPTS = {
     ],
 }
 
-# Financial (monetary) concepts confirmed present in the real filing that
-# are genuinely NOT mapped to any normalized field yet — either because
-# they're detail-level breakdowns of a total we already capture elsewhere
-# (OCI reclassification components) or a niche disclosure not worth a
-# dedicated field for Phase 1. Listed explicitly (with a reason) so the
-# classifier can label them UNMAPPED_FINANCIAL precisely instead of lumping
-# them in with metadata — see normalizers/fact_classifier.py.
+# Financial (monetary) concepts that are genuinely NOT mapped to any
+# normalized field AND are not a known detail/component of something we
+# already capture — these are the ones that should actually worry a
+# reviewer. Kept deliberately small: "we don't have a field for this and
+# it isn't obviously a sub-item of a total we do capture" is a real gap,
+# not busywork.
 KNOWN_UNMAPPED_FINANCIAL_CONCEPTS = {
-    "AmountOfItemThatWillBeReclassifiedToProfitAndLoss":
-        "OCI reclassification component detail — total already captured via other_comprehensive_income",
-    "AmountOfItemThatWillNotBeReclassifiedToProfitAndLoss":
-        "OCI reclassification component detail — total already captured via other_comprehensive_income",
-    "IncomeTaxRelatingToItemsThatWillBeReclassifiedToProfitOrLoss":
-        "Tax effect on an OCI component — not yet broken out in normalized schema",
-    "IncomeTaxRelatingToItemsThatWillNotBeReclassifiedToProfitOrLoss":
-        "Tax effect on an OCI component — not yet broken out in normalized schema",
     "NetMovementInRegulatoryDeferralAccountBalancesRelatedToProfitOrLossAndTheRelatedDeferredTaxMovement":
-        "Niche regulatory-deferral disclosure — no normalized field for Phase 1",
+        "Niche regulatory-deferral disclosure (rare, utilities-sector) that can affect reported "
+        "profit — no normalized field for Phase 1, genuinely worth a human look if it appears "
+        "with a non-zero value.",
+}
+
+# Financial (monetary) concepts that ARE understood — specifically known
+# to be a detail-level breakdown/component of a total already captured by
+# a mapped field above — but are deliberately NOT given their own
+# normalized field. These are classified INTENTIONALLY_UNMAPPED with
+# category "detail_component" (see normalizers/fact_classifier.py), NOT
+# UNMAPPED_FINANCIAL: the information is not lost (every raw fact is
+# still stored in xbrl_facts regardless of classification — see spec
+# §26), it's just correctly understood as decomposition of a figure we
+# already have directly from its own total concept, not a new fact.
+#
+# Every entry documents WHICH total it's a component of, so this reads as
+# reviewed reasoning, not a dumping ground.
+DETAIL_COMPONENT_CONCEPTS = {
+    # --- OCI reclassification detail: components of other_comprehensive_income ---
+    "AmountOfItemThatWillBeReclassifiedToProfitAndLoss":
+        "OCI reclassification component — total already captured via other_comprehensive_income",
+    "AmountOfItemThatWillNotBeReclassifiedToProfitAndLoss":
+        "OCI reclassification component — total already captured via other_comprehensive_income",
+    "IncomeTaxRelatingToItemsThatWillBeReclassifiedToProfitOrLoss":
+        "Tax effect on an OCI reclassification component — OCI total already captured net of tax "
+        "via other_comprehensive_income",
+    "IncomeTaxRelatingToItemsThatWillNotBeReclassifiedToProfitOrLoss":
+        "Tax effect on an OCI reclassification component — OCI total already captured net of tax "
+        "via other_comprehensive_income",
+
+    # --- Cash-flow investing/financing detail: components of cfi/cff totals ---
+    "InterestReceivedClassifiedAsInvestingActivities":
+        "Detail line within investing activities — cfi total already captured directly "
+        "(also separately available as cashflow supplementary field interest_received)",
+    "DividendsReceivedClassifiedAsInvestingActivities":
+        "Detail line within investing activities — cfi total already captured directly",
+    "PaymentsToAcquireIntangibleAssets":
+        "Detail line within investing activities — cfi total already captured directly",
+    "ProceedsFromSaleOfIntangibleAssets":
+        "Detail line within investing activities — cfi total already captured directly",
+    "PaymentOfFinanceLeaseLiabilities":
+        "Detail line within financing activities — cff total already captured directly",
 }
 
 #
@@ -172,6 +204,7 @@ BALANCE_SHEET_CONCEPT_MAP = {
 
     "long_term_borrowings": [
         "BorrowingsNoncurrent", "LongTermBorrowings", "NoncurrentBorrowings", "LongtermBorrowings",
+        "LoansNoncurrent", "LoansNonCurrent",
     ],
     "other_long_term_liabilities": [
         "OtherNoncurrentLiabilities", "OtherNonCurrentLiabilities", "OtherLongTermLiabilities",
@@ -185,6 +218,7 @@ BALANCE_SHEET_CONCEPT_MAP = {
 
     "short_term_borrowings": [
         "BorrowingsCurrent", "ShortTermBorrowings", "CurrentBorrowings", "ShorttermBorrowings",
+        "LoansCurrent",
     ],
     "trade_payables": [
         "TradePayablesCurrent", "TradePayables",
@@ -196,7 +230,20 @@ BALANCE_SHEET_CONCEPT_MAP = {
         "CurrentProvisions", "ShortTermProvisions", "ProvisionsCurrent",
     ],
 
-    "total_liabilities": ["EquityAndLiabilities", "Liabilities"],
+    # IMPORTANT: "Liabilities" (bare) was REMOVED as a candidate here.
+    # "EquityAndLiabilities" is the true balance-sheet-balancing total
+    # (Equity + Liabilities combined, which by definition always equals
+    # Assets); "Liabilities" alone is a DIFFERENT, smaller figure
+    # (Liabilities only, excluding Equity). Treating them as
+    # interchangeable aliases for one field was a real bug: if a filer
+    # happened to tag "Liabilities" instead of "EquityAndLiabilities",
+    # the Assets-vs-total_liabilities reconciliation check would compare
+    # Assets against a figure that's supposed to be smaller by exactly
+    # Equity, producing a false reconciliation ERROR. "Liabilities" (bare)
+    # is now its own supplementary field — see
+    # BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS below — used for the explicit
+    # three-way Assets = Equity + Liabilities check instead.
+    "total_liabilities": ["EquityAndLiabilities"],
 
     "property_plant_equipment": ["PropertyPlantAndEquipment"],
     "capital_work_in_progress": ["CapitalWorkInProgress"],
@@ -226,6 +273,31 @@ BALANCE_SHEET_CONCEPT_MAP = {
     "other_current_assets": ["OtherCurrentAssets"],
 
     "total_assets": ["Assets"],
+}
+
+# Balance-sheet SUBTOTAL concepts (CurrentAssets, NoncurrentAssets,
+# CurrentLiabilities, NoncurrentLiabilities, Equity, bare Liabilities).
+# These are genuinely useful, genuinely financial figures — but they are
+# subtotals/components of the line items already captured individually
+# above, not elementary new facts, so (per the review requested) they get
+# mapped here as supplementary fields (same non-schema-persisted
+# mechanism as INCOME_STATEMENT_SUPPLEMENTARY_CONCEPTS: used for
+# reconciliation/traceability, not written to new DB columns) rather than
+# either being left UNMAPPED_FINANCIAL or given full dedicated schema
+# columns neither requested nor needed for Phase 1.
+#
+# "total_equity" and "total_liabilities_excl_equity" specifically exist
+# to support the real three-way balance-sheet reconciliation
+# (Assets = Equity + Liabilities) — see validators/financial_validator.py
+# validate_balance_sheet. Do NOT reuse "total_liabilities" (which maps to
+# EquityAndLiabilities, the combined balancing total) for this purpose.
+BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS = {
+    "total_equity": ["Equity"],
+    "total_liabilities_excl_equity": ["Liabilities"],
+    "total_current_assets": ["CurrentAssets"],
+    "total_non_current_assets": ["NoncurrentAssets", "NonCurrentAssets"],
+    "total_current_liabilities": ["CurrentLiabilities"],
+    "total_non_current_liabilities": ["NoncurrentLiabilities", "NonCurrentLiabilities"],
 }
 
 CASHFLOW_CONCEPT_MAP = {
@@ -274,16 +346,52 @@ CASHFLOW_CONCEPT_MAP = {
         "ProceedsFromSalesOfPropertyPlantAndEquipment",
         "ProceedsFromSaleOfPropertyPlantAndEquipment",
     ],
+    "investments_net": [
+        # Genuinely a net figure in some filings (one concept covering
+        # both purchases and sales) but a few filers tag purchases and
+        # proceeds as two separate concepts with no single "net" tag —
+        # when that happens, only the first of these two to resolve wins
+        # and the field will UNDER-represent the true net investing flow
+        # (document, don't invent, a netting calculation we weren't given).
+        "PaymentsForInvestments", "PurchaseOfInvestments",
+        "ProceedsFromSaleOfInvestments",
+    ],
     "borrowings": [
         "ProceedsFromBorrowings",
+        "ProceedsFromCurrentBorrowings", "ProceedsFromNoncurrentBorrowings",
     ],
     "repayments": [
         "RepaymentsOfBorrowings",
+        "RepaymentsOfCurrentBorrowings", "RepaymentsOfNoncurrentBorrowings",
     ],
     "dividends_paid": [
         "DividendsPaidClassifiedAsFinancingActivities",
         "DividendsPaid",
     ],
+}
+
+# Cash-flow concepts that are genuinely useful but don't have a dedicated
+# cashflow_statement schema column (same non-persisted-extra-key
+# mechanism used throughout this file). fx_effect_on_cash specifically
+# exists to support the CFO + CFI + CFF + FX = net change in cash
+# reconciliation (see validators/financial_validator.py validate_cashflow)
+# — without it, a real FX-driven gap between CFO+CFI+CFF and the reported
+# net change in cash would look like an unexplained discrepancy.
+CASHFLOW_SUPPLEMENTARY_CONCEPTS = {
+    "fx_effect_on_cash": [
+        "EffectOfExchangeRateChangesOnCashAndCashEquivalents",
+        "EffectOfExchangeRateChangesOnCashAndCashEquivalentsBeforeDilutionOfNonControllingInterests",
+    ],
+    "interest_received": [
+        "InterestReceivedClassifiedAsInvestingActivities",
+        "InterestReceivedClassifiedAsOperatingActivities",
+    ],
+    "dividend_received": [
+        "DividendsReceivedClassifiedAsInvestingActivities",
+        "DividendReceivedClassifiedAsInvestingActivities",
+    ],
+    "proceeds_from_issue_of_equity": ["ProceedsFromIssueOfEquity"],
+    "payments_for_share_buyback": ["PaymentsForShareBuyBack", "PaymentsForRepurchaseOfShares"],
 }
 
 RATIO_CONCEPTS = {

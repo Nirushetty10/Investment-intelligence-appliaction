@@ -672,18 +672,35 @@ def _classify_discovery_period_type(submission_type, reporting_quarter, period_e
     download), so it can only reason from catalog metadata:
       - An explicit Q1/Q2/Q3 marker in the reporting_quarter text always
         means quarterly, regardless of audited status (a company CAN
-        audit an interim quarter; that doesn't make it an annual filing).
-      - An audited filing whose reporting_quarter text is blank, or marked
-        Q4/"fourth quarter"/"annual"/"year ended", is classified annual —
-        this is exactly the SEBI LODR pattern where audited year-end
-        results are filed as the annual (optionally Q4-combined) filing.
-      - Anything else defaults to quarterly (the safe, pre-existing
-        fallback) rather than guessing annual without positive evidence.
+        audit an interim quarter — some do, voluntarily, instead of a
+        limited review — and that must NOT make it an annual filing).
+      - An audited filing whose reporting_quarter text carries an
+        EXPLICIT Q4/"fourth quarter"/"annual"/"year ended" marker is
+        classified annual — this is the SEBI LODR pattern where audited
+        year-end results are filed as the annual (optionally
+        Q4-combined) filing.
+      - Anything else — including a BLANK/missing reporting_quarter field,
+        even when submission_type says audited — defaults to quarterly.
+
+    REGRESSION FIXED: an earlier version of this function treated a
+    blank/missing reporting_quarter as "looks like annual" whenever
+    submission_type was audited. That is NOT reliable evidence on its
+    own — audited status says something about assurance level, not
+    period length — and in production this caused real Q1/Q3 filings to
+    be mis-classified "annual" (most likely because the catalog's actual
+    quarter field didn't match any of the key names this module guesses
+    at, leaving reporting_quarter blank for EVERY filing including
+    genuine quarters, not just annual ones). Classifying "annual" now
+    requires a POSITIVE, explicit annual/Q4 marker in the text — never an
+    inference from absence of a quarter marker.
 
     This is a first pass only. resolvers.period_resolver.resolve_canonical_period
     is the final authority once the actual XBRL contexts are available,
     and will override this (recording the conflict, never silently) if
-    the source disagrees — see that module's docstring.
+    the source disagrees — see that module's docstring. A blank/
+    unrecognized reporting_quarter field defaulting to "quarterly" here
+    is always safe in that sense: if the filing is genuinely annual, the
+    canonical resolver corrects it once the real XBRL is parsed.
     """
     quarter_text = (str(reporting_quarter) if reporting_quarter else "").strip().lower()
     submission_text = (str(submission_type) if submission_type else "").strip().lower()
@@ -697,14 +714,14 @@ def _classify_discovery_period_type(submission_type, reporting_quarter, period_e
     if any(marker in quarter_text for marker in explicit_quarter_markers):
         return "quarterly"
 
-    annual_or_q4_markers = (
+    explicit_annual_or_q4_markers = (
         "annual", "year ended", "fourth quarter", "quarter 4", "q4", "quarter iv",
     )
-    looks_like_q4_or_annual_or_blank = (not quarter_text) or any(
-        marker in quarter_text for marker in annual_or_q4_markers
+    has_explicit_annual_signal = bool(quarter_text) and any(
+        marker in quarter_text for marker in explicit_annual_or_q4_markers
     )
 
-    if is_audited and looks_like_q4_or_annual_or_blank:
+    if is_audited and has_explicit_annual_signal:
         return "annual"
 
     return "quarterly"

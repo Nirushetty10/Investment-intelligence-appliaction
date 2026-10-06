@@ -1,0 +1,1437 @@
+<!DOCTYPE html PUBLIC "-//W3C//DtdXHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <title>IndAS Details</title>
+    <style type="text/css" media="screen">
+
+table {
+    border: 1px solid #d6d6d6;
+    border-collapse: collapse;
+    page-break-after: always;
+    overflow-wrap: break-word;
+    align: center;
+    width: 1075px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+td:has(b) {
+background-color: #e5e5e5;
+}
+
+
+tr:has(td b) th,
+tr:has(td b) td,
+tr:has(th b) th,
+tr:has(th b) td {
+background-color: #e5e5e5;
+}
+
+
+.textalingright{
+   text-align: right;
+}
+/* table:not(.textblocktable):not(.signatoryDetails):not(.signatureDetailsTable):not(.remarksTable):not(.auditqualificationtable):not(.tdAlingLeft)tbody tr td:nth-last-child(1),
+table:not(.textblocktable):not(.signatoryDetails):not(.signatureDetailsTable):not(.remarksTable):not(.auditqualificationtable):not(.tdAlingLeft)tbody tr td:nth-last-child(2),
+table:not(.textblocktable):not(.signatoryDetails):not(.signatureDetailsTable):not(.remarksTable):not(.auditqualificationtable):not(.tdAlingLeft)thead tr th:nth-last-child(1),
+table:not(.textblocktable):not(.signatoryDetails):not(.signatureDetailsTable):not(.remarksTable):not(.auditqualificationtable):not(.tdAlingLeft)thead tr th:nth-last-child(2){
+    width: 15% !important;
+    max-width: 15% !important;
+    word-wrap: break-word;
+} */
+
+.stockExchnageTableLastColwidth tbody tr td:nth-child(3),
+.stockExchnageTableLastColwidth tbody tr td:nth-child(3){
+    width: 15% !important;
+}
+.stockExchnageTableLastColwidth tbody tr td:nth-child(4),
+.stockExchnageTableLastColwidth tbody tr td:nth-child(4){
+    width: 15% !important;
+}
+.customTablewidth3Col tbody tr td:first-child,
+.customTablewidth3Col thead tr th:first-child{
+    width: 5% !important;
+    max-width: 5% !important;
+    word-wrap: break-word;
+}
+
+.customTablewidth3Col tbody tr td:nth-child(2),
+.customTablewidth3Col thead tr th:nth-child(2){
+    width: 60% !important;
+    max-width: 60% !important;
+    word-wrap: break-word;
+}
+.customTablewidth3Col tbody tr td:nth-child(3),
+.customTablewidth3Col thead tr th:nth-child(3){
+    width: 15% !important;
+    max-width: 15% !important;
+    word-wrap: break-word;
+}
+.customTablewidth3Col tbody tr td:nth-child(4),
+.customTablewidth3Col thead tr th:nth-child(4){
+    width: 15% !important;
+    max-width: 15% !important;
+    word-wrap: break-word;
+}
+
+th {
+
+    border-right: 1px solid #d6d6d6;
+    border-bottom: 1px solid #d6d6d6;
+    text-align: left;
+    font-weight: normal;
+    background: white;
+    word-break: initial;
+}
+
+td {
+    border-right: 1px solid #d6d6d6;
+    border-bottom: 1px solid #d6d6d6;
+    font-size: 15px;
+    text-align: right;
+    word-break: initial;
+
+}
+body {
+   margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+/* First column: left-aligned */
+table td:first-child {
+text-align: left;
+}
+
+.no-align-left{
+    text-align:right !important;
+}
+
+/* Second column: left-aligned */
+table td:nth-child(2):not(.no-align-left) {
+text-align: left !important;
+}
+
+/* All other columns: right-aligned */
+/* table td:nth-child(n+3) {
+text-align: right;
+} */
+
+h1 {
+    margin: 8px;
+    text-align: center;
+}
+
+.l{
+  background: white;
+}
+
+
+
+h3 {
+    margin: 8px;
+    font-size: 18px;
+    height: 20px;
+    text-align: center;
+    background-color: white;
+}
+
+.table-container-1{
+  width: 1075px;
+   overflow-x: auto;
+   border: 1px solid #d6d6d6;
+   margin:auto;
+}
+.table-container{
+width: 1073px;
+overflow-x: auto;
+overflow-y: auto;
+height: 400px;
+border: 1px solid #d6d6d6;
+margin:auto;
+}
+
+
+.table-container-anx{
+width: 1073px;
+overflow-x: auto;
+overflow-y: auto;
+height: 700px;
+border: 1px solid #d6d6d6;
+}
+
+.tablescroll {
+    border-collapse: collapse;
+    width: 2500px;
+}
+ .firstColumn {
+    border-right: 1px solid #d6d6d6;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+}
+
+  .secColumn {
+   top: 45px;
+    border-right: 1px solid #d6d6d6;
+    left: -1;
+    z-index: 100;
+}
+
+
+  .fix4row{
+  position: sticky;
+  top:0px;
+}
+.fixTableHead{
+  position: sticky;
+  top: 64px;
+}
+  .fixTableHeadMain{
+    position: sticky;
+    top: 165px;
+
+}
+
+.txtAlign{
+  text-align: left;
+
+}
+ .fixTableHeadrpt{
+  position: sticky;
+  top: 0;
+  border:1px solid black;
+}
+ .fixthirdrowrpt{
+  position: sticky;
+  top: 61px;
+  border:1px solid black;
+}
+
+.fixfourthrowrpt {
+  position: sticky;
+  top: 121px;
+}
+.fixfourthrowrptNew{
+  position: sticky;
+  top: 123px;
+  border:1px solid black;
+}
+.subtitle_bg{
+    background-color: #e5e5e5;
+}
+
+.gITable td {
+text-align: right;
+}
+
+.remarksTable
+    th{
+        width: 20%;
+        text-align:left;
+    }
+
+    .textblocktable td,
+    .auditqualificationtable td,
+    .signatureDetailsTable td
+    .tdAlingLeft td,
+    .signatoryDetails td{
+        text-align: left;
+    }
+.textblocktable th{
+    width: 20% !important;
+    text-align: left;
+}
+.auditqualificationtable
+    th{
+        text-align:left;
+}
+.signatureDetailsTable{
+        width: 20% !important;
+        text-align:left;
+    }
+.tdAlingLeft th{
+        width: 20% !important;
+        text-align:left;
+    }
+
+.signatoryDetails th{
+        min-width: 20% !important;
+        text-align:left;
+    }
+
+.full-width-table{
+  width: 100vh;
+  margin-left: calc(-47vw + 500px);
+  position: relative;
+}
+
+.wrapper-container{max-width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-x: auto;
+}
+.d-flex-table-head{
+    display: flex;
+    width: 1075px;
+    margin-left: auto;
+    margin-right: auto;
+    justify-content: space-between;
+}
+    </style>
+<script >bazadebezolkohpepadr="374941510"</script><script type="text/javascript" src="https://nsearchives.nseindia.com/akam/13/165927b6"  defer></script></head>
+
+<body>
+
+
+
+
+      
+
+
+
+
+
+    <br>
+
+    <h1>Integrated Filing &mdash; IndAS</h1>
+
+         <br>
+
+        <br />
+                <h3  style="font-weight: bold;text-align: center;">General information about company</h3>
+        <table  cellspacing="5" cellpadding="5" class="gITable" >
+                        <tr>
+                <th>Scrip Code</th>
+                <td style="width:15%">500325</td>
+            </tr>
+            <tr>
+                <th>NSE Symbol</th>
+                <td>RELIANCE</td>
+            </tr>
+            <tr>
+                <th>MSEI Symbol</th>
+                <td>NOTLISTED</td>
+            </tr>
+            <tr>
+                <th>ISIN</th>
+                <td>INE002A01018</td>
+            </tr>
+            <tr>
+                <th>Name of company</th>
+                <td>RELIANCE INDUSTRIES LIMITED</td>
+            </tr>
+           <tr>
+                <th>Type of company</th>
+                <td>Main Board</td>
+
+            </tr>
+            <tr>
+                <th>Class of security</th>
+                <td>Equity</td>
+            </tr>
+
+            <tr>
+                <th>Date of start of financial year</th>
+                <td>01-04-2026</td>
+            </tr>
+            <tr>
+                <th>Date of end of financial year</th>
+                <td>31-03-2027</td>
+            </tr>
+            <tr>
+                <th>Date of board meeting when results were approved</th>
+                <td>17-07-2026</td>
+            </tr>
+            <tr>
+                <th>Date on which prior intimation of the meeting for considering financial results was informed
+                    to the exchange</th>
+                <td>10-07-2026</td>
+            </tr>
+            <tr>
+                <th>Description of presentation currency</th>
+                <td>INR</td>
+            </tr>
+           <tr>
+                <th>Level of rounding used in financial results</th>
+                <td>Lakhs</td>
+            </tr>
+
+            <tr>
+                <th>Reporting Type</th>
+                <td>Quarterly</td>
+            </tr>
+
+
+            <tr>
+                <th>Reporting Quarter</th>
+                <td>First quarter</td>
+            </tr>
+            <tr>
+                <th>Nature of report standalone or consolidated</th>
+                <td>Consolidated</td>
+            </tr>
+            <tr>
+                <th>Whether results are audited or unaudited for the quarter ended</th>
+                <td>Unaudited</td>
+            </tr>
+             <tr>
+                <th>Whether results are audited or unaudited for the Year to date for current period ended/year ended</th>
+                <td></td>
+            </tr>
+            <tr>
+                <th>Segment Reporting</th>
+                <td>Multi segment</td>
+            </tr>
+
+            <tr>
+                <th>Description of single segment</th>
+                <td></td>
+            </tr>
+            <tr>
+                <th>Start date and time of board meeting</th>
+                <td>17-07-2026 &nbsp; 17:30:00</td>
+            </tr>
+            <tr>
+                <th>End date and time of board meeting</th>
+                <td>17-07-2026 &nbsp; 19:00:00</td>
+            </tr>
+            <tr>
+                <th>Whether cash flow statement is applicable on company</th>
+                <td></td>
+            </tr>
+            <tr>
+                <th>Type of cash flow statement</th>
+                <td></td>
+            </tr>
+            <tr>
+                <th>Declaration of unmodified opinion or statement on impact of audit qualification</th>
+                <td>Declaration of unmodified opinion</td>
+            </tr>
+
+
+
+
+
+            
+        </table>
+    <br /><br /><br />
+
+
+ <div class="d-flex-table-head">
+         <h3 style="font-weight: bold;text-align: center;">Financial Results Ind-AS</h3>
+         <h3 style="color:red;text-align:right">Amount in (Lakhs)</h3>
+  </div>
+        <table  cellspacing="5" cellpadding="5" class="stockExchnageTableLastColwidth">
+            
+            <tr>
+                <th colspan="2"><b>Particulars</b></th>
+                <th>3 months/ 6 months ended (dd-mm-yyyy)</th>
+                <th>Year to date figures for current period ended (dd-mm-yyyy)</th>
+            </tr>
+            <tr>
+                <th background-color:lightgray;>A</th>
+                <th background-color:lightgray;>Date of start of reporting period</th>
+                <td class="no-align-left">01-04-2026</td>
+                <td class="no-align-left">01-04-2026</td>
+            </tr>
+            <tr>
+                <th background-color:lightgray;>B</th>
+                <th background-color:lightgray;>Date of end of reporting period</th>
+                 <td class="no-align-left">30-06-2026</td>
+                 <td class="no-align-left">30-06-2026</td>
+            </tr>
+            <tr>
+                <th background-color:lightgray;>C</th>
+                <th background-color:lightgray;>Whether results are audited or unaudited</th>
+                <td class="no-align-left">Unaudited</td>
+                <td class="no-align-left">Unaudited</td>
+            </tr>
+            <tr>
+                <th background-color:lightgray;>D</th>
+                <th background-color:lightgray;>Nature of report standalone or consolidated</th>
+                <td class="no-align-left">Consolidated</td>
+                <td class="no-align-left">Consolidated</td>
+            </tr>
+
+            <tr>
+                <th class="subtitle_bg"><b>1</b></th>
+                <th colspan="3" class="subtitle_bg"><b>Income</b></th>
+            </tr>
+            <tr>
+                <th></th>
+                <th background-color:lightgray;>Revenue from operations</th>
+                 <td>3,11,85,000.00</td>
+                 <td>3,11,85,000.00</td>
+            </tr>
+            <tr>
+                <th></th>
+                <th background-color:lightgray;>Other income</th>
+              <td>6,55,000.00</td>
+                 <td>6,55,000.00</td>
+            </tr>
+            <tr>
+                <th></th>
+                <th class="subtitle_bg txtAlign"><b>Total income</b></th>
+                <td class="subtitle_bg"><b>3,18,40,000.00</b></td>
+                <td class="subtitle_bg"><b>3,18,40,000.00</b></td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>2</b></th>
+                <th colspan="3" class="subtitle_bg"><b>Expenses</b></th>
+            </tr>
+            <tr>
+                <th background-color:lightgray;>(a)</th>
+                <th background-color:lightgray;>Cost of materials consumed</th>
+                <td>1,29,85,700.00</td>
+                <td>1,29,85,700.00</td>
+            </tr>
+            <tr>
+                <th background-color:lightgray;>(b)</th>
+                <th background-color:lightgray;>Purchases of stock-in-trade</th>
+              <td>82,83,300.00</td>
+                <td>82,83,300.00</td>
+
+
+            </tr>
+            <tr>
+                <th background-color:lightgray;>(c)</th>
+                <th background-color:lightgray;>Changes in inventories of finished goods,
+                    work-in-progress and stock-in-trade</th>
+                <td>(1,32,600.00)</td>
+                <td>(1,32,600.00)</td>
+            </tr>
+            <tr>
+                <th background-color:lightgray;>(d)</th>
+                <th background-color:lightgray;>Employee benefit expense </th>
+                 <td>7,71,700.00</td>
+                <td>7,71,700.00</td>
+
+            </tr>
+            <tr>
+                <th background-color:lightgray;>(e)</th>
+                <th background-color:lightgray;>Finance costs</th>
+                  <td>8,33,700.00</td>
+                <td>8,33,700.00</td>
+
+            </tr>
+            <tr>
+                <th background-color:lightgray;>(f)</th>
+                <th background-color:lightgray;>Depreciation, depletion and amortisation expense
+                </th>
+                <td>15,10,000.00</td>
+                <td>15,10,000.00</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>(f)</b></th>
+                <th colspan="3" class="subtitle_bg"><b>Other Expenses</b></th>
+            </tr>
+
+
+
+
+                        
+                    <tr>
+                <th>1</th>
+                <td>Excise duty recovered</td>
+                <td>2,38,200.00</td>
+                <td>2,38,200.00</td>
+               </tr>
+        
+
+                          
+                    <tr>
+                <th>2</th>
+                <td>Other Expenses</td>
+                <td>42,87,000.00</td>
+                <td>42,87,000.00</td>
+               </tr>
+        
+
+                          
+            <tr>
+                <th class="subtitle_bg"></th>
+                <th class="txtAlign subtitle_bg"><b>Total other expenses</b></th>
+                <td class="subtitle_bg"><b>45,25,200.00</b></td>
+                <td class="subtitle_bg"><b>45,25,200.00</b></td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"></th>
+                <th class="txtAlign subtitle_bg"><b>Total expenses</b></th>
+                 <td sclass="subtitle_bg"><b>2,87,77,000.00</b></td>
+                <td class="subtitle_bg"><b>2,87,77,000.00</b></td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg">3</th>
+                <th class="txtAlign subtitle_bg"><b>Total profit before exceptional items and tax</b></th>
+               <td class="subtitle_bg"><b>30,63,000.00</b></td>
+                <td class="subtitle_bg"><b>30,63,000.00</b></td>
+            </tr>
+            <tr>
+                <th>4</th>
+                <th>Exceptional items </th>
+                <td>0.00</td>
+                <td>0.00</td>
+
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>5</b></th>
+                <th class="txtAlign subtitle_bg"><b>Total profit before tax</b></th>
+                 <td class="subtitle_bg"><b>30,63,000.00</b></td>
+                <td class="subtitle_bg"><b>30,63,000.00</b></td>
+            </tr>
+
+
+            <tr>
+                <th class="subtitle_bg"><b>6</b></th>
+                <th class="subtitle_bg"><b>Tax expense</b></th>
+                <td colspan="2" class="subtitle_bg"></td>
+            </tr>
+            <tr>
+                <th>7</th>
+                <th>Current tax</th>
+              <td>4,67,100.00</td>
+              <td>4,67,100.00</td>
+            </tr>
+            <tr>
+                <th>8</th>
+                <th>Deferred tax</th>
+                <td>2,95,800.00</td>
+                  <td>2,95,800.00</td>
+
+            </tr>
+            <tr>
+                <th  class="subtitle_bg"><b>9</b></th>
+                <th class="txtAlign subtitle_bg"><b>Total tax expenses</b></th>
+                <td class="subtitle_bg"><b>7,62,900.00</b></td>
+                <td class="subtitle_bg"><b>7,62,900.00</b></td>
+            </tr>
+            <tr>
+                <th>10</th>
+                <th >Net movement in regulatory deferral account balances related to profit or loss and
+                    the related deferred tax movement</th>
+             <td>0.00</td>
+             <td>0.00</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>11</b></th>
+                <th class="txtAlign subtitle_bg"><b>Net Profit Loss for the period from
+                        continuing operations</b></th>
+                <td  class="subtitle_bg"><b>23,00,100.00</b></td>
+                   <td  class="subtitle_bg"><b>23,00,100.00</b></td>
+            </tr>
+
+
+            <tr>
+                <th>12</th>
+                <th >Profit (loss) from discontinued operations before tax</th>
+                <td>0.00</td>
+               <td>0.00</td>
+            </tr>
+            <tr>
+                <th>13</th>
+                <th >Tax expense of discontinued operations</th>
+                <td>0.00</td>
+             <td>0.00</td>
+            </tr>
+            <tr>
+                <th  class="subtitle_bg"><b>14</b></th>
+                <th class="txtAlign subtitle_bg"><b>Net profit (loss) from discontinued
+                        operation after tax</b></th>
+              <td class="subtitle_bg"><b>0.00</b></td>
+                   <td class="subtitle_bg"><b>0.00</b></td>
+            </tr>
+
+
+
+            <tr>
+                <th>15</th>
+                <th>Share of profit (loss) of associates and joint ventures accounted for using equity
+                    method</th>
+               <td>19,500.00</td>
+               <td>19,500.00</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>16</b></th>
+                <th class="txtAlign subtitle_bg"><b>Total profit (loss) for period</b></th>
+                 <td class="subtitle_bg"><b>23,19,600.00</b></td>
+                <td class="subtitle_bg"><b>23,19,600.00</b></td>
+            </tr>
+            <tr>
+                <th>17</th>
+                <th class="txtAlign"><u>Other comprehensive income net of taxes</u></th>
+             <td>3,26,700.00</td>
+             <td>3,26,700.00</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>18</b></th>
+                <th class="txtAlign subtitle_bg"><b>
+                Total Comprehensive Income for the period</b></th>
+               <td class="subtitle_bg"><b>26,46,300.00</b></td>
+               <td class="subtitle_bg"><b>26,46,300.00</b></td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>19</b></th>
+                <th class="subtitle_bg"><b>Total profit or loss, attributable to  </b>
+                </th>
+                <td class="subtitle_bg"></td>
+                <td class="subtitle_bg"></td>
+
+            </tr>
+            <tr>
+                <th></th>
+                <th>Profit or loss, attributable to owners of parent</th>
+              	<td>20,94,600.00</td>
+                <td>20,94,600.00</td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Total profit or loss, attributable to non-controlling interests</th>
+                <td>2,25,000.00</td>
+                <td>2,25,000.00</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>20</b></th>
+                <th class="subtitle_bg"><b>Total Comprehensive income for the period attributable to</b></th>
+                <td class="subtitle_bg"></td>
+                <td class="subtitle_bg"></td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Comprehensive income for the period attributable to owners of parent</th>
+                <td>3,19,500.00</td>
+                <td>3,19,500.00</td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Total comprehensive income for the period attributable to owners of parent non-controlling
+                    interests</th>
+                <td>7,200.00</td>
+                <td>7,200.00</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>21</b></th>
+                <th class="subtitle_bg"><b>Details of equity share capital</b></th>
+                <td colspan="2" class="subtitle_bg"></td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Paid-up equity share capital</th>
+                 <td>13,53,300.00</td>
+                 <td>13,53,300.00</td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Face value of equity share capital</th>
+                <td>10</td>
+                <td>10</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>27</b></th>
+                <th class="subtitle_bg"><b>Details of debt securities</b></th>
+                <td colspan="2" class="subtitle_bg"></td>
+            </tr>
+            <tr>
+                <th>22</th>
+                <th>Reserves excluding revaluation reserve</th>
+               <td></td>
+               <td></td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>23</b></th>
+                <th class="subtitle_bg"><b>Earnings per share</b></th>
+                <td colspan="2" class="subtitle_bg"></td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>i</b></th>
+                <th class="subtitle_bg"><b>Earnings per equity share for continuing operations</b></th>
+                <td colspan="2" class="subtitle_bg"></td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Basic earnings (loss) per share from continuing operations</th>
+                <td>15.48</td>
+                <td>15.48</td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Diluted earnings (loss) per share from continuing operations</th>
+               <td>15.48</td>
+               <td>15.48</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>ii</b></th>
+                <th class="subtitle_bg"><b>Earnings per equity share for discontinued operations</b></th>
+                <td colspan="2"  class="subtitle_bg"></td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Basic earnings (loss) per share from discontinued operations</th>
+              <td>0</td>
+              <td>0</td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Diluted earnings (loss) per share from discontinued operations</th>
+              <td>0</td>
+               <td>0</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>ii</b></th>
+                <th class="subtitle_bg"><b>Earnings per equity share</b></th>
+                <td colspan="2" class="subtitle_bg"></td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Basic earnings (loss) per share from continuing
+                    and discontinued operations</th>
+                <td>15.48</td>
+                <td>15.48</td>
+            </tr>
+            <tr>
+                <th></th>
+                <th>Diluted earnings (loss) per share from
+                    continuing and discontinued operations</th>
+               <td>15.48</td>
+               <td>15.48</td>
+            </tr>
+            <tr>
+                <th>24</th>
+                <th>Debt equity ratio</th>
+               <td>0.400</td>
+              <td>0.400</td>
+            </tr>
+            <tr>
+                <th>25</th>
+                <th>Debt service coverage ratio</th>
+               <td>3.1200</td>
+             <td>3.1200</td>
+
+            </tr>
+            <tr>
+                <th>26</th>
+                <th>Interest service coverage ratio</th>
+                <td>4.6700</td>
+               <td>4.6700</td>
+            </tr>
+            <tr>
+                <th class="subtitle_bg"><b>27</b></th>
+                <th colspan="2" class="subtitle_bg"><b>Disclosure of notes on financial results</b></th>
+                            <td><b>Textual Information(1)</b></td>
+                          </tr>
+            </tbody>
+        </table>
+
+   <br /><br />   <br />
+
+         <div class="d-flex-table-head">
+         <h3 style="font-weight: bold;text-align: center;">Disclosure of notes on financial results</h3>
+
+      </div>
+            <table class="gridtable textblocktable" cellspacing="5" cellpadding="5" >
+                                <tr>
+                    <th>Textual Information(1)</th>
+                    <td   style='word-break: break-all;'>Notes to Financial Results:   1. The following ratios which form part of the Consolidated Financial Results for the quarter ended 30th June,2026 are reproduced below, as there are no rows designated for the same in the XBRL format:                         Ratio                                                               Quarter ended                                                                                                          30th June, 2026                    A) Current ratio                                                             1.07                                      B) Long Term Debt to Working Capital                          3.99                                      C) Bad Debts to Account Receivable Ratio                    0.00                                               D) Current Liability Ratio                                                0.50                                      E) Total Debt to Total Assets                                         0.17                                      F) Debtors Turnover Ratio $                                         22.04                                     G) Inventory Turnover Ratio $                                       7.20                                                H) Operating Margin (%)                                                9.5                                       I) Net Profit Margin (%)                                                6.8                                                           $ Ratios for the quarter have been annualised.         2. Formulae for computation of ratios are as follows :          i. Debt Service Coverage Ratio      =                         Earnings before Interest and Tax                                                                   ------------------------------------------------------------------------                                                                        Interest Expense + Principal Repayments made during                                                                                                                       the period for long term loans           ii. Interest Service Coverage Ratio =                        Earnings before Interest and Tax                                                                    -----------------------------------------------------------------------                                                                                                    Interest Expense         iii. Debt/ Equity Ratio     =                                                           Total Debt                                                                                                       ------------------                                                                                                         Total Equity            iv. Current ratio      =                                                                Current Assets                                                                                                      ---------------------                                                                                                       Current Liabilities          v. Long term debt to working capital =     Non-Current Borrowings (Including Current Maturities of                                                                                                 Non-Current Borrowings)                                                                   -----------------------------------------------------------------------                                                                    Current Assets Less Current Liabilities (Excluding Current                                                                                       Maturities of Non-Current Borrowings)         vi. Bad debts to Account receivable  =                                         Bad Debts           ratio                                                                                       ------------------                                                                                                Average Trade Receivables            vii. Current liability ratio      =                                                Total Current Liabilities                                                                                        --------------------------------------------                                                                                                           Total Liabilities           viii. Total debts to total assets =                                                     Total Debt                                                                                                            -----------------                                                                                                              Total Assets         ix. Debtors turnover =                                                         Value of Sales & Services                                                                                                 ----------------------------------                                                                                                  Average Trade Receivables         x. Inventory turnover =                            Cost of Goods Sold (Cost of Material Consumed+ Purchases +                                                                                    Changes in Inventory + Manufacturing Expenses)                                                                    ---------------------------------------------------------------------------------                                                                        Average Inventories of Finished Goods, Stock-in-Process and                                                                                                             Stock-in-Trade            xi. Operating margin (%) =                               Earnings before Interest and Tax less Other Income                                                                                                                                               ------------------------------------------------------------------                                                                                                      Value of Sales & Services             xii. Net profit margin (%) =        Profit After Tax and Share of Profit / (Loss) of Associates and Joint Ventures                                                         ---------------------------------------------------------------------------------------------                                                                                                         Value of Sales & Services            3. Net Worth is Rs. 880,365 crore.      4.Outstanding Capital Redemption Reserve/Debenture Redemption Reserve as at 30th June, 2026 is Rs.3,213 Crore </td>
+                </tr>
+        </table>
+
+       <br /><br />   <br />
+    
+<h3 style="font-weight: bold;text-align: center;">Remarks</h3>
+ <table class="gridtable remarksTable" cellspacing="5" cellpadding="5">
+
+           <tr>
+
+                <th style="width:15%">Debt equity ratio</th>
+                <td style="width:80%"></td>
+
+            </tr>
+            <tr>
+
+                <th >Debt service coverage ratio</th>
+                <td > </td>
+            </tr>
+            <tr>
+
+                <th>Interest service coverage ratio</th>
+                <td></td>
+
+            </tr>
+
+      </table>
+
+
+   <br><br>
+
+  
+
+
+             <div class="d-flex-table-head">
+      <h3 style="font-weight: bold;text-align: left;height:7vh;width: 90%;">Format for Reporting Segment wise Revenue, Results and Capital Employed along with the company results</h3>
+      <h3 style="color:red;width: 18%;text-align:right">Amount in (Lakhs)</h3>
+      </div>
+
+                <table class="stockExchnageTableLastColwidth" cellspacing="5" cellpadding="5" >
+                    
+                    <tr>
+                        <th colspan="2"><b>Particulars</b></th>
+                        <th>3 months/ 6 month ended (dd-mm-yyyy)</th>
+                        <th>Year to date figures for current period
+                            ended (dd-mm-yyyy)</th>
+                    </tr>
+                    <tr>
+                        <th colspan="2" class="txtAlign">Date of start of reporting  period</th>
+
+                          <td class="no-align-left">01-04-2026 </td>
+                       <td class="no-align-left">01-04-2026 </td>
+                    </tr>
+                    <tr>
+                        <th colspan="2" class="txtAlign">Date of end of reporting
+                            period</th>
+                        <td class="no-align-left">30-06-2026 </td>
+            <td class="no-align-left">30-06-2026 </td>
+                    </tr>
+                    <tr>
+                        <th colspan="2" class="txtAlign">Whether results are audited
+                            or unaudited</th>
+                        <td class="no-align-left">Unaudited </td>
+            <td class="no-align-left">Unaudited </td>
+                    </tr>
+                    <tr>
+                        <th colspan="2" class="txtAlign">Nature of report standalone or
+                            consolidated</th>
+                        <td class="no-align-left">Consolidated </td>
+            <td class="no-align-left">Consolidated </td>
+                    </tr>
+                    <tr>
+                        <th><b>1</b></th>
+                        <th colspan="7"><b>Segment Revenue (Income) </b></th>
+                    </tr>
+                    <tr>
+                        <th><b></b></th>
+                        <th colspan="7"><b>(net sale/income from each segment should
+                                be disclosed)</b></th>
+                    </tr>
+
+                        
+
+                     <tr>
+                <th>1</th>
+                <td>Oil to Chemicals (O2C)</td>
+                <td>2,01,80,300.00</td>
+                <td>2,01,80,300.00</td>
+               </tr>
+                     
+
+                     <tr>
+                <th>2</th>
+                <td>Oil and Gas</td>
+                <td>6,29,800.00</td>
+                <td>6,29,800.00</td>
+               </tr>
+                     
+
+                     <tr>
+                <th>3</th>
+                <td>Retail</td>
+                <td>90,40,900.00</td>
+                <td>90,40,900.00</td>
+               </tr>
+                     
+
+                     <tr>
+                <th>4</th>
+                <td>Digital Services</td>
+                <td>46,90,000.00</td>
+                <td>46,90,000.00</td>
+               </tr>
+                     
+
+                     <tr>
+                <th>5</th>
+                <td>Others</td>
+                <td>31,20,400.00</td>
+                <td>31,20,400.00</td>
+               </tr>
+                     
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Total Segment Revenue</b></th>
+                        <td>3,76,61,400.00</td>
+                        <td>3,76,61,400.00</td>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Less: Inter segment revenue</b></th>
+                       <td>36,35,700.00</td>
+                        <td>36,35,700.00 </td>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Revenue from operations </b></th>
+                        <td>3,40,25,700.00</td>
+                        <td>3,40,25,700.00</td>
+                    </tr>
+                    <tr>
+                        <th><b>2</b></th>
+                        <th colspan="7"><b>Segment Result</b></th>
+                    </tr>
+                    <tr>
+                        <th><b></b></th>
+                        <th colspan="7"><b>Profit (+) / Loss (-) before tax and
+                                interest from each segment</b></th>
+
+
+                    </tr>
+
+
+
+    
+
+
+
+
+                                       <tr>
+                <th>1</th>
+                <td>Oil to Chemicals (O2C)</td>
+                <td>14,17,000.00</td>
+                <td>14,17,000.00</td>
+               </tr>
+                                          <tr>
+                <th>2</th>
+                <td>Oil and Gas</td>
+                <td>3,88,800.00</td>
+                <td>3,88,800.00</td>
+               </tr>
+                                          <tr>
+                <th>3</th>
+                <td>Retail</td>
+                <td>4,52,900.00</td>
+                <td>4,52,900.00</td>
+               </tr>
+                                          <tr>
+                <th>4</th>
+                <td>Digital Services</td>
+                <td>13,56,400.00</td>
+                <td>13,56,400.00</td>
+               </tr>
+                                          <tr>
+                <th>5</th>
+                <td>Others</td>
+                <td>52,300.00</td>
+                <td>52,300.00</td>
+               </tr>
+                     
+
+
+                  <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Total Profit before tax</b></th>
+                            <td>36,67,400.00</td>
+                            <td>36,67,400.00</td>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>i. Finance cost</b></th>
+                        <td> 8,33,700.00</td>
+                        <td>8,33,700.00</td>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>ii. Other Unallocable Expenditure net  off Unallocable income</b></th>
+                       <td> (2,29,300.00)</td>
+                        <td>(2,29,300.00)</td>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Profit before tax</b></th>
+                        <td> 30,63,000.00 </td>
+                        <td>30,63,000.00 </td>
+                    </tr>
+                    <tr>
+                        <th><b>3</b></th>
+                        <th colspan="7"><b>(Segment Asset - Segment Liabilities)</b>
+                        </th>
+                    </tr>
+                    <tr>
+                        <th><b></b></th>
+                        <th colspan="7"><b>Segment Asset </b></th>
+                    </tr>
+
+
+          
+     <tr>
+                <th>1  </th>
+                <td>Oil to Chemicals (O2C)</td>
+                <td>5,21,07,000.00</td>
+                <td>5,21,07,000.00</td>
+               </tr>
+          
+     <tr>
+                <th>2  </th>
+                <td>Oil and Gas</td>
+                <td>29,10,200.00</td>
+                <td>29,10,200.00</td>
+               </tr>
+          
+     <tr>
+                <th>3  </th>
+                <td>Retail</td>
+                <td>2,59,34,900.00</td>
+                <td>2,59,34,900.00</td>
+               </tr>
+          
+     <tr>
+                <th>4  </th>
+                <td>Digital Services</td>
+                <td>6,41,89,100.00</td>
+                <td>6,41,89,100.00</td>
+               </tr>
+          
+     <tr>
+                <th>5  </th>
+                <td>Others</td>
+                <td>4,08,86,300.00</td>
+                <td>4,08,86,300.00</td>
+               </tr>
+          
+
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Total Segment Asset</b></th>
+                        <td>18,60,27,500.00</td>
+                        <td>18,60,27,500.00</td>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Un-allocable Assets</b></th>
+                        <td>3,48,47,200.00</td>
+                        <td>3,48,47,200.00</td>
+
+                    </tr>
+              <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Net Segment Asset</b></th>
+                        <td>22,08,74,700.00</td>
+                        <td>22,08,74,700.00</td>
+                    </tr>
+                    <tr>
+                        <th><b>4</b></th>
+                        <th colspan="7"><b>Segment Liabilities</b></th>
+                    </tr>
+                    <tr>
+                        <th><b></b></th>
+                        <th colspan="7"><b>Segment Liabilities</b></th>
+                    </tr>
+
+
+        
+     <tr>
+                <th>1  </th>
+                <td>Oil to Chemicals (O2C)</td>
+                <td>2,62,80,000.00</td>
+                <td>2,62,80,000.00</td>
+               </tr>
+          
+     <tr>
+                <th>2  </th>
+                <td>Oil and Gas</td>
+                <td>12,24,100.00</td>
+                <td>12,24,100.00</td>
+               </tr>
+          
+     <tr>
+                <th>3  </th>
+                <td>Retail</td>
+                <td>98,57,400.00</td>
+                <td>98,57,400.00</td>
+               </tr>
+          
+     <tr>
+                <th>4  </th>
+                <td>Digital Services</td>
+                <td>2,32,49,300.00</td>
+                <td>2,32,49,300.00</td>
+               </tr>
+          
+     <tr>
+                <th>5  </th>
+                <td>Others</td>
+                <td>1,01,53,000.00</td>
+                <td>1,01,53,000.00</td>
+               </tr>
+          
+
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Total Segment Liabilities</b></th>
+                        <td>7,07,63,800.00</td>
+                        <td>7,07,63,800.00</td>
+
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Un-allocable Liabilities</b></th>
+                        <td>15,01,10,900.00</td>
+                        <td>15,01,10,900.00</td>
+                    </tr>
+      		     <tr>
+                        <th></th>
+                        <th class="txtAlign"><b>Net Segment Liabilities</b></th>
+                        <td>22,08,74,700.00</td>
+                        <td>22,08,74,700.00</td>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th><b>Disclosure of notes on segments</b></th>
+                                                <td colspan="2">Textual Information(2)</td>
+                                            </tr>
+
+                </table>
+                <br>
+                <br>
+                <br>
+                
+
+                       <h3 style="font-weight: bold;text-align: center;">Text Block</h3>
+                    <table class="gridtable textblocktable" cellspacing="5" cellpadding="5" >
+                        
+                        <tr>
+                            <th>Textual Information(2)</th>
+                            <td style='line-break: normal;"' >1. Q1 FY27 Segment Revenue includes Rs 28,407 crore GST recovered. Net Revenue is Rs 311,850 crore.      2. Oil to Chemicals (O2C) , Retail & Digital Services results include Interest income pertaining to the respective segments.</td>
+                        </tr>
+                    </table>
+
+<br>
+<br>
+<br>
+
+
+
+
+
+
+
+ <div class="d-flex-table-head">
+      <h3 style="font-weight: bold;text-align: center;"> Other Comprehensive Income</h3>
+      <h3 style="color:red;text-align:right">Amount in (Lakhs)</h3>
+  </div>
+        <table class="stockExchnageTableLastColwidth" cellspacing="5" cellpadding="5" >
+                         <tr>
+                <th colspan="2"><b>Particulars</b></th>
+                <th>3 months/ 6 months ended (dd-mm-yyyy)</th>
+                <th>Year to date figures for current period ended (dd-mm-yyyy)</th>
+            </tr>
+            <tr>
+                <th>A</th>
+                <th>Date of start of reporting period</th>
+              <td class="no-align-left">01-04-2026 </td>
+            <td class="no-align-left">01-04-2026 </td>
+            </tr>
+            <tr>
+                <th>B</th>
+                <th>Date of end of reporting period</th>
+             <td class="no-align-left" style="width:20%">30-06-2026 </td>
+            <td class="no-align-left" style="width:20%" >30-06-2026 </td>
+            </tr>
+
+
+
+          <tr>
+                <th >C</th>
+                <th >Whether results are audited or unaudited</th>
+              <td class="no-align-left">Unaudited </td>
+            <td class="no-align-left">Unaudited </td>
+            </tr>
+            <tr>
+                <th background-color:lightgray;>D</th>
+                <th background-color:lightgray;>Nature of report standalone or consolidated</th>
+                   <td class="no-align-left">Consolidated </td>
+            <td class="no-align-left">Consolidated </td>
+            </tr>
+
+
+            <tr>
+                <th class="subtitle_bg"></th>
+                <th class="subtitle_bg">Other comprehensive income [Abstract]</th>
+                <th class="subtitle_bg" colspan="2"></th>
+            </tr>
+            <tr class="subtitle_bg">
+                <th class="subtitle_bg">1</th>
+                <th class="subtitle_bg">Amount of items that will not be reclassified to profit and loss</th>
+                <th colspan="2" class="subtitle_bg"></th>
+            </tr>
+
+
+
+
+
+
+
+                                       <tr>
+                <th>1</th>
+                <td>Items that will not be reclassified to Profit or Loss</td>
+                <td>1,30,500.00</td>
+                <td>1,30,500.00</td>
+               </tr>
+                  
+
+
+
+
+            <tr>
+                <th class="subtitle_bg"></th>
+                <th class="subtitle_bg">Total Amount of items that will not be reclassified to profit and loss</th>
+                <td class="subtitle_bg"> 1,30,500.00 </td>
+                <td class="subtitle_bg"> </td>
+            </tr>
+            <tr>
+            <th >2</th>
+             <th>Income tax relating to items that will not be reclassified to profit or loss </th>
+             <td>18,000.00</td>
+             <td>18,000.00</td>
+            </tr>
+
+
+            <tr>
+                <th class="subtitle_bg"   >3</th>
+                <th class="subtitle_bg">Amount of items that will be reclassified to profit and loss</th>
+                <td colspan="2" class="subtitle_bg"></td>
+            </tr>
+
+
+
+
+                                       <tr>
+                <th>1</th>
+                <td>Items that will be reclassified to Profit or Loss</td>
+                <td>2,44,000.00</td>
+                <td>2,44,000.00</td>
+               </tr>
+                  
+            <tr>
+                <th class="subtitle_bg"></th>
+                <th class="subtitle_bg">Total Amount of items that will be reclassified to profit and loss</th>
+                <td>2,44,000.00</td>
+                <td></td>
+            </tr>
+            <tr>
+                <th>4</th>
+                <th>Income tax relating to items that will be reclassified to profit or loss </th>
+                <td class="subtitle_bg">29,800.00</td>
+                <td class="subtitle_bg">29,800.00</td>
+
+            </tr>
+            <tr>
+                <th style="background-color:lightgray;">5</th>
+                <th style="background-color:lightgray;">Total Other comprehensive income</th>
+              <td>3,26,700.00</td>
+              <td>3,26,700.00</td>
+            </tr>
+        </table>
+   <br /><br />   <br />
+
+
+
+
+
+      
+
+
+
+
+    <!-- if class of securoty is(genral sheet)====> Debt securities and/or non-cumulative redeemable preference shares      Data not found in json-->
+
+        <br><br>
+         </div>
+
+
+
+        <div class="d-flex-table-head">
+  <h3 style="font-weight: bold;text-align: center;">Details of Impact of Audit Qualification</h3>
+  <h3 style="color:red;text-align:right">Amount in (Lakhs)</h3>
+  </div>
+
+          <table class="auditqualificationtable" cellspacing="5" cellpadding="5" >
+
+            <tr>
+                <th>Whether results are audited or unaudited</th>
+                <td style="width:15%" class="no-align-left subtitle_bg">Unaudited</td>
+            </tr>
+            <tr>
+                <th>Declaration of unmodified opinion or statement on impact of audit qualification</th>
+                <td class="no-align-left subtitle_bg">Declaration of unmodified opinion</td>
+            </tr>
+            <tr>
+                <th>Auditor's opinion</th>
+                <td class="no-align-left"></td>
+            </tr>
+            <tr style="border-bottom; none;">
+                <th>Declaration pursuant to Regulation 33 (3) (d) of SEBI (LODR) Regulation, 2015:
+                    The company declares that its Statutory Auditor/s have issued an Audit Report with unmodified
+                    opinion for the period on Standalone results</th>
+                <td style="border-bottom; none;" class="no-align-left subtitle_bg">Yes</td>
+            </tr>
+
+    </table>
+    <table cellspacing="5" cellpadding="5"  style="border-top: none;">
+            <tr style="text-align:center;border-top:1px solid;">
+                    <td class="l txtAlign">Sr No.</td>
+                    <td class="txtAlign">Audit firm's name</td>
+                    <td class="txtAlign">Whether the firm holds a valid peer review certificate issued by Peer Review Board of ICAI</td>
+                    <td class="txtAlign" colspan="3">Certificate valid upto</td>
+                </tr>
+
+                                    <tr style="text-align:center;">
+                <th class="txtAlign">1</th>
+                <td class="txtAlign">Deloitte Haskins & Sells LLP</td>
+                <td class="txtAlign">Yes</td>
+                <td class="txtAlign">31-07-2027</td>
+            </tr>
+                                    <tr style="text-align:center;">
+                <th class="txtAlign">2</th>
+                <td class="txtAlign">Chaturvedi & Shah LLP</td>
+                <td class="txtAlign">Yes</td>
+                <td class="txtAlign">30-06-2029</td>
+            </tr>
+                            </table>
+    <br> <br>
+
+
+
+ 
+
+
+       
+    
+
+
+       
+
+
+
+
+
+
+
+
+
+ 
+        <br /><br />
+       
+
+
+
+
+
+
+
+
+
+
+
+
+

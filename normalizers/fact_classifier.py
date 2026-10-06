@@ -1,41 +1,85 @@
 """
 normalizers/fact_classifier.py
 
-Classifies every raw XBRL fact's concept into exactly one of three buckets,
-so mapping-coverage reporting isn't misleading (a flat "108 unmapped facts"
-mixes admin metadata, disclosure text, and segment breakdowns in with
-genuinely-important financial concepts that still need mapping):
+Classifies every raw XBRL fact's concept into exactly one of three TOP-LEVEL
+buckets, so mapping-coverage reporting isn't misleading (a flat "108
+unmapped facts" mixes admin metadata, disclosure text, and segment
+breakdowns in with genuinely-important financial concepts that still need
+mapping):
 
     MAPPED               — resolved into a normalized field somewhere
                             (income statement, balance sheet, cashflow,
                             ratios, reconciliation bridge, or the
                             supplementary financial concepts).
-    INTENTIONALLY_UNMAPPED — filer identity, board-meeting/admin dates,
-                            auditor/compliance declarations, disclosure
-                            text blocks, or segment/dimensional facts
-                            (segment data belongs in its own
-                            segment_financials table per the original
-                            spec §18 — out of scope for this normalizer,
-                            and explicitly not the same thing as "unknown").
+    INTENTIONALLY_UNMAPPED — never a financial-value concern. Has FOUR
+                            sub-categories (the `category` field on
+                            FactClassificationResult), one of which is new:
+                              - filer_identity / board_meeting_admin /
+                                auditor_compliance / disclosure_text:
+                                not a financial value at all.
+                              - segment_dimensional: belongs in
+                                segment_financials (spec §18), out of
+                                scope for this normalizer.
+                              - detail_component: IS a genuine financial
+                                value, but a known sub-item of a total
+                                we already capture directly from its own
+                                concept — e.g. one of several
+                                "AdjustmentsFor..." lines that reconcile
+                                PBT to operating cash flow, when we
+                                already have the CFO total itself. The
+                                information is never lost (every raw fact
+                                is stored in xbrl_facts regardless), it's
+                                just correctly understood as decomposition
+                                rather than a new fact.
     UNMAPPED_FINANCIAL    — a genuine monetary/financial concept that is
-                            not yet mapped anywhere. This is the bucket
-                            that should shrink toward zero over time, and
-                            the ONLY one that should worry a reviewer.
+                            NOT a known detail/component of anything we
+                            capture and has no normalized field. This is
+                            the bucket that should shrink toward zero over
+                            time, and the ONLY one that should worry a
+                            reviewer — deliberately kept honest rather
+                            than optimized to look small (see
+                            DETAIL_COMPONENT_CONCEPTS's docstring in
+                            concept_map.py: every entry documents WHICH
+                            total it's a component of, so moving something
+                            here is reviewed reasoning, not a shortcut).
 
 Classification is closed-world but fails SAFE: any concept not explicitly
-listed as MAPPED (via the concept maps) or INTENTIONALLY_UNMAPPED (via the
-category table below) defaults to UNMAPPED_FINANCIAL rather than being
-silently ignored — an unrecognized concept must surface for review, never
-disappear into a bucket that looks fine.
+listed as MAPPED, INTENTIONALLY_UNMAPPED (exact-name table or the
+detail-component pattern check), defaults to UNMAPPED_FINANCIAL rather
+than being silently ignored — an unrecognized concept must surface for
+review, never disappear into a bucket that looks fine.
 """
 from dataclasses import dataclass, field
 from typing import Optional
 
-from normalizers.concept_map import KNOWN_UNMAPPED_FINANCIAL_CONCEPTS
+from normalizers.concept_map import DETAIL_COMPONENT_CONCEPTS, KNOWN_UNMAPPED_FINANCIAL_CONCEPTS
 
 MAPPED = "MAPPED"
 INTENTIONALLY_UNMAPPED = "INTENTIONALLY_UNMAPPED"
 UNMAPPED_FINANCIAL = "UNMAPPED_FINANCIAL"
+
+# Concept-name PREFIX patterns that reliably indicate a cash-flow
+# reconciliation detail line (a component reconciling PBT to operating
+# cash flow, or similar) in the standard Ind-AS XBRL taxonomy — used as a
+# fallback for the many individual "AdjustmentsFor<SpecificItem>" concepts
+# that cannot be exhaustively enumerated by exact name without the actual
+# filing in hand (a real annual filing can easily carry 15-20 distinct
+# such lines: depreciation, finance costs, interest income, dividend
+# income, unrealised FX, provisions, fair-value gains/losses, impairment,
+# working-capital movements for each major current-asset/liability
+# category, etc.). This is pattern-matching on XBRL NAMING CONVENTION,
+# not on any financial VALUE — a safe, principled basis for
+# classification, unlike guessing at amounts. Every concept matched here
+# is a genuine financial figure (never hidden — still in xbrl_facts) that
+# is correctly understood as a CFO-total reconciliation component, since
+# the CFO total itself is captured directly from its own concept
+# (CashFlowsFromUsedInOperatingActivities) rather than being computed by
+# summing these detail lines.
+_DETAIL_COMPONENT_PREFIXES = (
+    "AdjustmentsFor",
+    "AdjustmentFor",
+    "OtherAdjustments",
+)
 
 # Concept local-name -> category label. Every entry here was confirmed, by
 # name, against the real RELIANCE Q1 FY27 filing (tests/fixtures/
@@ -121,6 +165,12 @@ def classify_concept(concept: str, mapped_concepts: set) -> FactClassificationRe
         return FactClassificationResult(
             INTENTIONALLY_UNMAPPED, INTENTIONALLY_UNMAPPED_CONCEPTS[concept]
         )
+
+    if concept in DETAIL_COMPONENT_CONCEPTS:
+        return FactClassificationResult(INTENTIONALLY_UNMAPPED, "detail_component")
+
+    if concept.startswith(_DETAIL_COMPONENT_PREFIXES):
+        return FactClassificationResult(INTENTIONALLY_UNMAPPED, "detail_component")
 
     # Fail SAFE: anything not explicitly accounted for above — whether a
     # concept we've reviewed and noted in KNOWN_UNMAPPED_FINANCIAL_CONCEPTS,

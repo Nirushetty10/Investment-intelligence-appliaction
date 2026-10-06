@@ -97,19 +97,40 @@ def test_unrecognized_concept_defaults_to_unmapped_financial_not_hidden():
 def test_known_financial_but_unmapped_concepts_have_specific_reasons(normalized):
     c = normalized.classification
     assert "NetMovementInRegulatoryDeferralAccountBalancesRelatedToProfitOrLossAndTheRelatedDeferredTaxMovement" in c.unmapped_financial_concepts
-    assert "AmountOfItemThatWillBeReclassifiedToProfitAndLoss" in c.unmapped_financial_concepts
-    # and NONE of the segment/metadata concepts leaked into this bucket
+    # and NONE of the segment/metadata/detail-component concepts leaked into this bucket
     assert "SegmentRevenue" not in c.unmapped_financial_concepts
     assert "NameOfTheCompany" not in c.unmapped_financial_concepts
+    assert "AmountOfItemThatWillBeReclassifiedToProfitAndLoss" not in c.unmapped_financial_concepts
+
+
+def test_oci_reclassification_items_correctly_classified_as_detail_component(normalized, parsed_doc):
+    """The OCI reclassification-detail concepts (and the tax effect on
+    them) ARE genuine financial figures, but they're known components of
+    a total we already capture directly (other_comprehensive_income) —
+    they must classify as INTENTIONALLY_UNMAPPED/detail_component, not
+    UNMAPPED_FINANCIAL. This is the distinction the mapping-coverage
+    review exists to make: 'not yet mapped' vs 'understood as a detail
+    of something we do capture' are different things."""
+    from normalizers.fact_classifier import INTENTIONALLY_UNMAPPED, classify_concept
+
+    mapped_concepts = set()  # irrelevant for this check — want the detail-component tier specifically
+    for concept in ("AmountOfItemThatWillBeReclassifiedToProfitAndLoss",
+                     "IncomeTaxRelatingToItemsThatWillBeReclassifiedToProfitOrLoss"):
+        result = classify_concept(concept, mapped_concepts)
+        assert result.classification == INTENTIONALLY_UNMAPPED
+        assert result.category == "detail_component"
 
 
 def test_unmapped_financial_count_is_small_after_fix(normalized):
     """The whole point of this fix: genuinely-unmapped financial concepts
     should be a small, reviewable number, not conflated with the ~88
-    metadata/segment/admin facts that are correctly ignored."""
+    metadata/segment/admin/detail-component facts that are correctly
+    classified elsewhere. After reclassifying OCI reclassification detail
+    (4 facts) from UNMAPPED_FINANCIAL to detail_component, only the one
+    genuinely-novel niche concept remains."""
     c = normalized.classification
-    assert c.unmapped_financial_count == 7
-    assert c.intentionally_unmapped_count == 88
+    assert c.unmapped_financial_count == 1
+    assert c.intentionally_unmapped_count == 94
     assert c.mapped_count == 47
 
 
