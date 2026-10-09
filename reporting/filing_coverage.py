@@ -40,6 +40,21 @@ class FilingCoverageReport:
 
     ratio_validation_issues: list = field(default_factory=list)  # list of ValidationIssue
 
+    # Taxonomy-provenance lens (spec item 4) — complementary to the three
+    # counts above, not a replacement: answers "where does this concept
+    # come from" (standard taxonomy / company extension / segment /
+    # metadata / genuinely unmapped) rather than "do we have a field for
+    # it". See normalizers/taxonomy_classifier.py.
+    resolved_taxonomy_id: Optional[str] = None
+    resolved_taxonomy_version: Optional[str] = None
+    taxonomy_mapped_facts: int = 0
+    company_extension_facts: int = 0
+    unrecognized_namespace_facts: int = 0
+    dimensional_segment_facts: int = 0
+    structural_metadata_facts: int = 0
+    genuinely_unmapped_financial_facts: int = 0
+    genuinely_unmapped_financial_concepts: dict = field(default_factory=dict)
+
 
 def build_coverage_report(
     symbol: str,
@@ -86,6 +101,17 @@ def build_coverage_report(
         unmapped_financial_facts=result.classification.unmapped_financial_count,
         unmapped_financial_concepts=dict(result.classification.unmapped_financial_concepts),
         ratio_validation_issues=ratio_issues,
+        resolved_taxonomy_id=result.resolved_taxonomy.taxonomy_id if result.resolved_taxonomy else None,
+        resolved_taxonomy_version=result.resolved_taxonomy.version if result.resolved_taxonomy else None,
+        taxonomy_mapped_facts=result.taxonomy_classification.counts.get("TAXONOMY_MAPPED", 0),
+        company_extension_facts=result.taxonomy_classification.counts.get("COMPANY_EXTENSION", 0),
+        unrecognized_namespace_facts=result.taxonomy_classification.counts.get("UNRECOGNIZED_NAMESPACE", 0),
+        dimensional_segment_facts=result.taxonomy_classification.counts.get("DIMENSIONAL_SEGMENT", 0),
+        structural_metadata_facts=result.taxonomy_classification.counts.get("STRUCTURAL_METADATA", 0),
+        genuinely_unmapped_financial_facts=result.taxonomy_classification.counts.get("GENUINELY_UNMAPPED_FINANCIAL", 0),
+        genuinely_unmapped_financial_concepts=dict(
+            result.taxonomy_classification.by_concept.get("GENUINELY_UNMAPPED_FINANCIAL", {})
+        ),
     )
 
 
@@ -129,5 +155,21 @@ def format_coverage_report(report: FilingCoverageReport) -> str:
         lines.append("  Ratio validation notes:")
         for issue in report.ratio_validation_issues:
             lines.append(f"    - [{issue.severity}] {issue.message}")
+
+    taxonomy_label = (
+        f"{report.resolved_taxonomy_id} ({report.resolved_taxonomy_version})"
+        if report.resolved_taxonomy_id else "UNRESOLVED (no registered taxonomy matched this filing's namespace)"
+    )
+    lines.append("")
+    lines.append(f"  Taxonomy: {taxonomy_label}")
+    lines.append(f"    Taxonomy-mapped:              {report.taxonomy_mapped_facts}")
+    lines.append(f"    Company extension:            {report.company_extension_facts}")
+    lines.append(f"    Unrecognized namespace:       {report.unrecognized_namespace_facts}")
+    lines.append(f"    Dimensional/segment:           {report.dimensional_segment_facts}")
+    lines.append(f"    Structural/metadata:           {report.structural_metadata_facts}")
+    lines.append(f"    Genuinely unmapped financial:  {report.genuinely_unmapped_financial_facts}")
+    if report.genuinely_unmapped_financial_concepts:
+        for concept, count in sorted(report.genuinely_unmapped_financial_concepts.items()):
+            lines.append(f"      - {concept} ({count} fact{'s' if count != 1 else ''})")
 
     return "\n".join(lines)

@@ -16,6 +16,7 @@ Regression coverage for the canonical period resolver fix. Two layers:
    requirement that this be verified against the actual processing route.
 """
 from contextlib import contextmanager
+import json
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -413,6 +414,9 @@ def test_process_filing_production_path_resolves_filing9_as_annual():
     assert summary["period_type_resolved"] == "annual"
     assert summary["period_type_registry"] == "quarterly"
     assert summary["period_resolution_conflict"] is True
+    # The schema version used by the fixture has no exact catalog available,
+    # so the result may be ingested but must not enter trusted ML inputs.
+    assert summary["trust_status"] == "PROVISIONAL"
 
     fp = session.financial_periods_params
     assert fp is not None, "financial_periods was never inserted"
@@ -422,6 +426,24 @@ def test_process_filing_production_path_resolves_filing9_as_annual():
     assert fp["financial_year"] == "2025-26"
     assert fp["financial_quarter"] is None
     assert fp["statement_type"] == "consolidated"
+    assert fp["trust_status"] == "PROVISIONAL"
+
+    # Step 4: taxonomy provenance must be persisted with the canonical period,
+    # not just emitted in transient console summaries. This filing's exact
+    # version is not present in the supplied catalog, so it must remain
+    # explicitly provisional with the original schemaRef evidence attached.
+    provenance = summary["taxonomy_provenance"]
+    assert provenance["taxonomy_id"] == fp["taxonomy_id"]
+    assert provenance["taxonomy_version"] == fp["taxonomy_version"]
+    assert provenance["taxonomy_catalog_status"] == fp["taxonomy_catalog_status"]
+    assert provenance["taxonomy_catalog_status"] == "VERSION_UNAVAILABLE"
+    assert provenance["source_schema_refs"]
+    assert json.loads(fp["source_schema_refs_json"]) == provenance["source_schema_refs"]
+    saved_reasons = json.loads(fp["trust_reasons_json"])
+    assert any(
+        reason["check_name"] == "taxonomy_catalog_exact_version_unavailable"
+        for reason in saved_reasons
+    )
 
     # ISSUE 6: conflict was logged for audit
     conflict_logs = [l for l in session.data_quality_logs if l.get("check_name") == "period_resolution_conflict"]

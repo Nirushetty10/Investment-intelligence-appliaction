@@ -1,0 +1,65 @@
+{
+  "patch": "NSE Step 3 trusted-data gate",
+  "files": [
+    {
+      "path": "normalizers/fact_classifier.py",
+      "size_bytes": 14503,
+      "sha256": "0a3f1dae9fd19e07e767ee8b3841f5775ffc57be67d9e1ad5e351c9039741db4"
+    },
+    {
+      "path": "normalizers/taxonomy_classifier.py",
+      "size_bytes": 10361,
+      "sha256": "367ed12ff69c43dc73ef1c07db9b8b8e21dcdf6ffd698bbbce458ff440213740"
+    },
+    {
+      "path": "normalizers/financial_normalizer.py",
+      "size_bytes": 29263,
+      "sha256": "83e0f4c0d80307eb6ce453eba5fbbe38f3bceeb7d5f0d70cf6765c8fb85b73b8"
+    },
+    {
+      "path": "validators/trust_gate.py",
+      "size_bytes": 2126,
+      "sha256": "6283f798ee6711e692d49e2e77f681e08fd669bbb149d8d0fad38420c6218f09"
+    },
+    {
+      "path": "nse_financials_pipeline.py",
+      "size_bytes": 34606,
+      "sha256": "3f4acf6947a893bdeb1b8c9f78b2f233cb5fad476b3d5db5bf0de50f8fa125bb"
+    },
+    {
+      "path": "repositories/financial_repository.py",
+      "size_bytes": 7877,
+      "sha256": "31d27de4f4359a288dfea7ce1e67b2966faf330532c4b78cdbe2160a8ec1143e"
+    },
+    {
+      "path": "db/schema.sql",
+      "size_bytes": 25960,
+      "sha256": "7a486da85a12a95a4c30d9d4b472bdc0ec09b74995734965a62a55adfe938696"
+    },
+    {
+      "path": "tests/test_taxonomy_type_classification.py",
+      "size_bytes": 2597,
+      "sha256": "4b3b52898f8dffc41ad7a50fe054472d402ebc9afba802937f45b02e75660875"
+    },
+    {
+      "path": "tests/test_trust_gate.py",
+      "size_bytes": 1988,
+      "sha256": "7553ed560bdf09b99a44731144cbb3e56e9dbdd72e4fee2c015249833a38d6a7"
+    },
+    {
+      "path": "tests/test_db_schema_migration.py",
+      "size_bytes": 14196,
+      "sha256": "cec1f83bcdd3c43b5c84d51b39ebbaa8eee0609a5150f5df01b027342c320827"
+    },
+    {
+      "path": "tests/test_filing9_integration.py",
+      "size_bytes": 25077,
+      "sha256": "4f819a1fd6e188fc47ec6a996e2ae34e2e7a4f1e4cac1443407556f75a776bb2"
+    },
+    {
+      "path": "STEP3_TRUSTED_DATA_GATE_README.md",
+      "size_bytes": 3277,
+      "sha256": "6e70f32b475bd349605675d1720284bcdd49bb3a7fe67ed8ad3b84491109f15b"
+    }
+  ]
+}

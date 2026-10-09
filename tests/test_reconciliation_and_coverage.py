@@ -21,7 +21,7 @@ from validators.financial_validator import validate_balance_sheet, validate_cash
 
 def _fact(context_ref, concept, value, unit_ref="INR"):
     return XbrlFact(
-        context_ref=context_ref, namespace="in-capmkt", concept=concept,
+        context_ref=context_ref, namespace="http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", concept=concept,
         raw_tag=f"in-capmkt:{concept}", raw_value=str(value),
         numeric_value=Decimal(str(value)), unit_ref=unit_ref, decimals="-5", scale=None, sign=None,
     )
@@ -47,6 +47,7 @@ def test_bare_liabilities_concept_does_not_resolve_total_liabilities_field():
             _fact(ctx, "Liabilities", "400000000"),  # bare liabilities only — NOT the balancing total
         ],
         source_format="XBRL_XML",
+        schema_refs=("in-capmkt-ent-2026-01-31.xsd",), namespace_map={"in-capmkt": "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", "in-capmkt-ent": "http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt/in-capmkt-ent"},
     )
     result = normalize(doc, period_end=period_end, period_start=None)
     assert result.balance_sheet["total_liabilities"] is None  # correctly NOT populated from bare "Liabilities"
@@ -61,6 +62,7 @@ def test_equity_and_liabilities_concept_resolves_total_liabilities_field():
         units={"INR": XbrlUnit(unit_ref="INR", measure="INR")},
         facts=[_fact(ctx, "EquityAndLiabilities", "1000000000")],
         source_format="XBRL_XML",
+        schema_refs=("in-capmkt-ent-2026-01-31.xsd",), namespace_map={"in-capmkt": "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", "in-capmkt-ent": "http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt/in-capmkt-ent"},
     )
     result = normalize(doc, period_end=period_end, period_start=None)
     assert result.balance_sheet["total_liabilities"] == Decimal("1000000000")
@@ -81,6 +83,7 @@ def _balance_sheet_doc(assets, equity, liabilities, period_end=date(2026, 3, 31)
             _fact(ctx, "Liabilities", liabilities),
         ],
         source_format="XBRL_XML",
+        schema_refs=("in-capmkt-ent-2026-01-31.xsd",), namespace_map={"in-capmkt": "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", "in-capmkt-ent": "http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt/in-capmkt-ent"},
     )
 
 
@@ -119,6 +122,7 @@ def test_three_way_reconciliation_skipped_info_when_subtotals_absent():
         units={"INR": XbrlUnit(unit_ref="INR", measure="INR")},
         facts=[_fact(ctx, "Assets", "1000000000"), _fact(ctx, "EquityAndLiabilities", "1000000000")],
         source_format="XBRL_XML",
+        schema_refs=("in-capmkt-ent-2026-01-31.xsd",), namespace_map={"in-capmkt": "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", "in-capmkt-ent": "http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt/in-capmkt-ent"},
     )
     result = normalize(doc, period_end=period_end, period_start=None)
     issues = validate_balance_sheet(result.balance_sheet)
@@ -148,6 +152,7 @@ def _cashflow_doc(cfo, cfi, cff, net_change, fx=None, period_start=date(2025, 4,
         units={"INR": XbrlUnit(unit_ref="INR", measure="INR")},
         facts=facts,
         source_format="XBRL_XML",
+        schema_refs=("in-capmkt-ent-2026-01-31.xsd",), namespace_map={"in-capmkt": "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", "in-capmkt-ent": "http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt/in-capmkt-ent"},
     )
 
 
@@ -245,6 +250,7 @@ def test_normalized_value_traces_back_to_raw_fact():
         units={"INR": XbrlUnit(unit_ref="INR", measure="INR")},
         facts=[_fact(ctx, "Assets", "1234500000")],
         source_format="XBRL_XML",
+        schema_refs=("in-capmkt-ent-2026-01-31.xsd",), namespace_map={"in-capmkt": "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", "in-capmkt-ent": "http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt/in-capmkt-ent"},
     )
     result = normalize(doc, period_end=period_end, period_start=None)
     normalized_value = result.balance_sheet["total_assets"]

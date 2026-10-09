@@ -1,0 +1,14 @@
+{
+  "step": 5,
+  "name": "read-only-source-to-database-integrity-audit",
+  "files": [
+    "tools/audit_filing_integrity.py",
+    "tests/test_data_audit.py",
+    "STEP5_DATA_AUDIT_README.md",
+    "STEP5_PATCH_MANIFEST.json"
+  ],
+  "database_migrations": false,
+  "data_writes": false,
+  "requires_user_database_execution": true,
+  "purpose": "Compare original saved XBRL bytes, persisted raw contexts/units/facts, normalized rows, and trust evidence without modifying data."
+}

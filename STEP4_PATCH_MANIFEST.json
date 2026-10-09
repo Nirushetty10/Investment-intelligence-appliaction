@@ -1,0 +1,21 @@
+{
+  "patch": "Step 4 - Persist taxonomy provenance",
+  "purpose": "Persist exact taxonomy identity/version, source schemaRef evidence, package version, catalog availability, mapping eligibility, and trust decision reasons for normalized periods.",
+  "files": [
+    "db/schema.sql",
+    "repositories/financial_repository.py",
+    "validators/trust_gate.py",
+    "nse_financials_pipeline.py",
+    "tests/test_db_schema_migration.py",
+    "tests/test_filing9_integration.py",
+    "tests/test_taxonomy_provenance.py",
+    "STEP4_TAXONOMY_PROVENANCE_README.md"
+  ],
+  "safety": [
+    "Raw XBRL facts are not deleted or modified by this patch.",
+    "Existing financial_periods rows remain PROVISIONAL by default after migration.",
+    "The patch records taxonomy mismatch; it does not fabricate a missing taxonomy package.",
+    "PostgreSQL integration tests must be run against a disposable test database."
+  ],
+  "validation_in_build_environment": "164 passed, 7 skipped because no PostgreSQL test credentials were configured in the isolated build container."
+}

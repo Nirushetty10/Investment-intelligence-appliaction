@@ -158,6 +158,67 @@ def test_ratios_needs_validation_column_exists(temp_db_name):
     assert "false" in row.column_default.lower()
 
 
+def test_trust_status_column_and_trusted_financial_periods_view_exist(temp_db_name):
+    engine = _init_schema_against(temp_db_name)
+    with engine.connect() as conn:
+        col = conn.execute(
+            text(
+                "SELECT column_name, column_default, is_nullable "
+                "FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'financial_periods' "
+                "AND column_name = 'trust_status'"
+            )
+        ).fetchone()
+        view = conn.execute(
+            text(
+                "SELECT table_name FROM information_schema.views "
+                "WHERE table_schema = 'public' AND table_name = 'trusted_financial_periods'"
+            )
+        ).fetchone()
+        views = {
+            row[0] for row in conn.execute(
+                text(
+                    "SELECT table_name FROM information_schema.views "
+                    "WHERE table_schema = 'public' AND table_name IN "
+                    "('trusted_financial_periods', 'trusted_income_statement', "
+                    "'trusted_balance_sheet', 'trusted_cashflow_statement', 'trusted_ratios')"
+                )
+            )
+        }
+    assert col is not None, "financial_periods.trust_status was not created"
+    assert col.is_nullable == "NO"
+    assert "PROVISIONAL" in col.column_default
+    assert view is not None, "trusted_financial_periods view was not created"
+    assert views == {
+        "trusted_financial_periods", "trusted_income_statement", "trusted_balance_sheet",
+        "trusted_cashflow_statement", "trusted_ratios",
+    }
+    with engine.connect() as conn:
+        provenance_columns = {
+            row[0] for row in conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'financial_periods'"
+                )
+            )
+        }
+        trusted_view_columns = {
+            row[0] for row in conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'trusted_financial_periods'"
+                )
+            )
+        }
+    expected_provenance = {
+        "taxonomy_id", "taxonomy_version", "taxonomy_namespace",
+        "taxonomy_source_package_version", "taxonomy_catalog_status",
+        "canonical_mapping_enabled", "source_schema_refs", "trust_reasons",
+    }
+    assert expected_provenance <= provenance_columns
+    assert expected_provenance <= trusted_view_columns
+
+
 # --------------------------------------------------------------------------
 # 4. Existing (pre-fix) database migration — the actual bug scenario
 # --------------------------------------------------------------------------
@@ -172,7 +233,25 @@ def test_existing_old_schema_database_migrates_safely(temp_db_name):
     engine = _init_schema_against(temp_db_name)
 
     with engine.begin() as conn:
+        # The latest schema adds trusted_ratios, which depends on
+        # ratios.needs_validation. A genuinely old schema predates that view,
+        # so remove the new view before simulating the old column layout.
+        # After init_schema() runs again below, the view must be recreated.
+        conn.execute(text("DROP VIEW IF EXISTS trusted_income_statement"))
+        conn.execute(text("DROP VIEW IF EXISTS trusted_balance_sheet"))
+        conn.execute(text("DROP VIEW IF EXISTS trusted_cashflow_statement"))
+        conn.execute(text("DROP VIEW IF EXISTS trusted_ratios"))
+        conn.execute(text("DROP VIEW IF EXISTS trusted_financial_periods"))
         conn.execute(text("ALTER TABLE ratios DROP COLUMN needs_validation"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN trust_status"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN taxonomy_id"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN taxonomy_version"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN taxonomy_namespace"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN taxonomy_source_package_version"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN taxonomy_catalog_status"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN canonical_mapping_enabled"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN source_schema_refs"))
+        conn.execute(text("ALTER TABLE financial_periods DROP COLUMN trust_reasons"))
         conn.execute(text("ALTER TABLE nse_filing_registry DROP CONSTRAINT nse_filing_registry_natural_key"))
         conn.execute(
             text(
@@ -202,6 +281,29 @@ def test_existing_old_schema_database_migrates_safely(temp_db_name):
             )
         ).fetchone()
         assert col is not None, "needs_validation was not re-added to an existing database"
+
+        trusted_ratios_view = conn.execute(
+            text(
+                "SELECT table_name FROM information_schema.views "
+                "WHERE table_schema = 'public' AND table_name = 'trusted_ratios'"
+            )
+        ).fetchone()
+        assert trusted_ratios_view is not None, "trusted_ratios view was not recreated by migration"
+        restored_provenance = {
+            row[0] for row in conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'public' AND table_name = 'financial_periods'"
+                )
+            )
+        }
+        assert {
+            "trust_status", "taxonomy_id", "taxonomy_version", "taxonomy_namespace",
+            "taxonomy_source_package_version", "taxonomy_catalog_status",
+            "canonical_mapping_enabled", "source_schema_refs", "trust_reasons",
+        } <= restored_provenance, "taxonomy provenance fields were not restored by migration"
+        # Force PostgreSQL to resolve the recreated view against the restored column.
+        conn.execute(text("SELECT * FROM trusted_ratios LIMIT 0"))
 
         constraints = {
             row[0] for row in conn.execute(

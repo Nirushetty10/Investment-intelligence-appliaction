@@ -81,12 +81,14 @@ from discovery.filing_discovery import (
 from parsers.ixbrl_parser import parse_document
 from normalizers.financial_normalizer import normalize
 from validators.financial_validator import (
+    ValidationIssue,
     overall_status,
     validate_income_statement,
     validate_balance_sheet,
     validate_cashflow,
     validate_ratio_plausibility,
 )
+from validators.trust_gate import evaluate_trust_status, build_taxonomy_provenance
 
 from repositories.filing_repository import (
     upsert_filing_registry_entry,
@@ -667,9 +669,41 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
         issues += validate_balance_sheet(result.balance_sheet)
     if result.cashflow_statement_coverage == "AVAILABLE":
         issues += validate_cashflow(result.cashflow_statement)
+
+    # Normalization guards are first-class data-quality findings, not merely
+    # console warnings. They must affect filing validation state and be
+    # persisted alongside reconciliation findings.
+    for finding in result.guard_findings:
+        issues.append(
+            ValidationIssue(
+                finding["check_name"],
+                finding["severity"],
+                finding["message"],
+            )
+        )
+
+    # A filing can be structurally parsed and still contain financial facts
+    # for which this version of the application has no verified canonical
+    # mapping. Keep those source facts in the raw layer, but do not label the
+    # filing fully VALIDATED while those facts remain unresolved.
+    if result.classification.unmapped_financial_count:
+        issues.append(
+            ValidationIssue(
+                "unmapped_financial_facts",
+                "WARNING",
+                f"{result.classification.unmapped_financial_count} financial fact(s) remain unmapped. "
+                "Their raw XBRL values are preserved, but they are not eligible for trusted financial features "
+                "until an authoritative mapping or an explicit reviewed exclusion is recorded.",
+            )
+        )
+
     status = overall_status(issues)
+    trust_status = evaluate_trust_status(result, issues)
+    taxonomy_provenance = build_taxonomy_provenance(result, issues, getattr(doc, "schema_refs", ()))
     update_filing_status(session, filing_id, validation_status=status)
     summary["validation_status"] = status
+    summary["trust_status"] = trust_status
+    summary["taxonomy_provenance"] = taxonomy_provenance
     summary["validation_issues"] = [
         {"check": i.check_name, "severity": i.severity, "message": i.message} for i in issues
     ]
@@ -725,6 +759,8 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
                     "financial_quarter": resolved.financial_quarter,
                     "source_filing_id": filing_id,
                     "source": filing["source_kind"],
+                    "trust_status": trust_status,
+                    **taxonomy_provenance,
                 },
             )
             upsert_income_statement(session, period_id, result.income_statement, result.period.unit)
@@ -789,6 +825,7 @@ def process_filing(client: NSEClient, session, filing_id: int) -> dict:
     logger.info("Coverage report for filing_id=%s:\n%s", filing_id, summary["coverage_report"])
 
     summary["period_id"] = period_id
+    summary["trust_status"] = trust_status
     summary["company_id"] = company_id
     summary["financial_year"] = resolved.financial_year
     summary["financial_quarter"] = resolved.financial_quarter

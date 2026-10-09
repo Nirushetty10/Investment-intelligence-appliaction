@@ -208,6 +208,19 @@ CREATE TABLE IF NOT EXISTS financial_periods (
 
     source_filing_id    BIGINT NOT NULL REFERENCES nse_filing_registry(filing_id),
     source              VARCHAR(24) NOT NULL,   -- INTEGRATED_FILING_IXBRL / XBRL / HTML / PDF
+    trust_status        VARCHAR(16) NOT NULL DEFAULT 'PROVISIONAL'
+                        CHECK (trust_status IN ('TRUSTED', 'PROVISIONAL', 'BLOCKED')),
+
+    -- Auditable taxonomy provenance: identity, exact version coverage,
+    -- schemaRef evidence, and explainable trust-decision reasons.
+    taxonomy_id         VARCHAR(64),
+    taxonomy_version    VARCHAR(32),
+    taxonomy_namespace  TEXT,
+    taxonomy_source_package_version VARCHAR(32),
+    taxonomy_catalog_status VARCHAR(32) NOT NULL DEFAULT 'TAXONOMY_UNRESOLVED',
+    canonical_mapping_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    source_schema_refs  JSONB NOT NULL DEFAULT '[]'::jsonb,
+    trust_reasons       JSONB NOT NULL DEFAULT '[]'::jsonb,
 
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -496,6 +509,52 @@ ALTER TABLE nse_filing_registry ADD COLUMN IF NOT EXISTS ixbrl_url TEXT;
 -- downstream fundamental/ML features can exclude it via
 -- repositories.financial_repository.get_validated_ratios.
 ALTER TABLE ratios ADD COLUMN IF NOT EXISTS needs_validation BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Filing-level trusted-data gate. Existing rows are deliberately PROVISIONAL
+-- until they are reprocessed under the current auditable quality rules.
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS trust_status VARCHAR(16) NOT NULL DEFAULT 'PROVISIONAL'
+    CHECK (trust_status IN ('TRUSTED', 'PROVISIONAL', 'BLOCKED'));
+
+-- Preserve the evidence behind every trust decision. Existing periods receive
+-- unresolved/default provenance and remain PROVISIONAL until reprocessed.
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS taxonomy_id VARCHAR(64);
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS taxonomy_version VARCHAR(32);
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS taxonomy_namespace TEXT;
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS taxonomy_source_package_version VARCHAR(32);
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS taxonomy_catalog_status VARCHAR(32) NOT NULL DEFAULT 'TAXONOMY_UNRESOLVED';
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS canonical_mapping_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS source_schema_refs JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE financial_periods ADD COLUMN IF NOT EXISTS trust_reasons JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- Downstream feature engineering / ML should join normalized statement tables
+-- through this view rather than reading financial_periods without a trust gate.
+CREATE OR REPLACE VIEW trusted_financial_periods AS
+SELECT period_id, company_id, period_type, statement_type, period_start_date,
+       period_end_date, financial_year, financial_quarter, source_filing_id, source,
+       taxonomy_id, taxonomy_version, taxonomy_namespace,
+       taxonomy_source_package_version, taxonomy_catalog_status,
+       canonical_mapping_enabled, source_schema_refs, trust_reasons
+FROM financial_periods
+WHERE trust_status = 'TRUSTED';
+
+-- Safe read surfaces for consumers. Analytics/ML code should use these views,
+-- not the unfiltered base tables, so provisional/blocked periods are excluded.
+CREATE OR REPLACE VIEW trusted_income_statement AS
+SELECT s.* FROM income_statement s
+JOIN trusted_financial_periods p ON p.period_id = s.period_id;
+
+CREATE OR REPLACE VIEW trusted_balance_sheet AS
+SELECT s.* FROM balance_sheet s
+JOIN trusted_financial_periods p ON p.period_id = s.period_id;
+
+CREATE OR REPLACE VIEW trusted_cashflow_statement AS
+SELECT s.* FROM cashflow_statement s
+JOIN trusted_financial_periods p ON p.period_id = s.period_id;
+
+CREATE OR REPLACE VIEW trusted_ratios AS
+SELECT r.* FROM ratios r
+JOIN trusted_financial_periods p ON p.period_id = r.period_id
+WHERE r.needs_validation = FALSE;
 
 -- reporting_quarter was originally VARCHAR(4) (meant for a short code),
 -- but this column actually stores NSE's raw catalog quarter text

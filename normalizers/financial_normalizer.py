@@ -36,6 +36,10 @@ from normalizers.concept_map import (
     RECONCILIATION_BRIDGE_CONCEPTS,
 )
 from normalizers.fact_classifier import ClassificationTally, classify_facts
+from normalizers.taxonomy_classifier import TaxonomyClassificationTally, classify_facts_taxonomy
+from taxonomy.registry import resolve_taxonomy_for_document
+from taxonomy.catalog import get_concept_metadata, taxonomy_version_status
+from taxonomy.period_types import get_concept_period_type, get_period_type_catalog_version
 from parsers.ixbrl_parser import ParsedXbrlDocument
 
 # Coverage status values used for income_statement / balance_sheet /
@@ -72,6 +76,16 @@ class NormalizationResult:
     # normalizers/fact_classifier.py).
     classification: ClassificationTally = field(default_factory=ClassificationTally)
 
+    # Complementary 5-way TAXONOMY-PROVENANCE lens (spec item 4): taxonomy
+    # identity resolved for this filing, plus the
+    # taxonomy_mapped/company_extension/dimensional_segment/
+    # structural_metadata/genuinely_unmapped_financial breakdown — see
+    # normalizers/taxonomy_classifier.py.
+    resolved_taxonomy: object = None  # taxonomy.registry.TaxonomyIdentity or None
+    taxonomy_classification: TaxonomyClassificationTally = field(
+        default_factory=TaxonomyClassificationTally.empty
+    )
+
     # Per-statement coverage: does the SOURCE FILING actually contain this
     # kind of data at all? This is independent of classification — a
     # filing can correctly have zero balance-sheet facts (this is normal
@@ -83,6 +97,10 @@ class NormalizationResult:
     segment_data_coverage: str = NOT_REPORTED_IN_FILING
     eps_coverage: str = NOT_REPORTED_IN_FILING
     ratios_coverage: str = NOT_REPORTED_IN_FILING  # AVAILABLE or NEEDS_VALIDATION
+    # Guard findings are validation-ready records describing financial facts
+    # that were deliberately refused during normalization. The raw facts are
+    # still retained; callers should persist these findings to data_quality_log.
+    guard_findings: list = field(default_factory=list)
 
     @property
     def unmapped_fact_count(self) -> int:
@@ -92,9 +110,40 @@ class NormalizationResult:
         return self.classification.unmapped_fact_count
 
 
-def _resolve_field(doc: ParsedXbrlDocument, candidates: list, period_end: date, period_start: Optional[date]):
+def _resolve_field(
+    doc: ParsedXbrlDocument,
+    candidates: list,
+    period_end: date,
+    period_start: Optional[date],
+    *,
+    allowed_namespaces: set,
+    resolved_taxonomy=None,
+):
     for concept_name in candidates:
-        fact = doc.non_dimensioned_fact_for_period(concept_name, period_end, period_start)
+        # XBRL periodType belongs to the taxonomy concept, not to the
+        # canonical target field. For example, the supplied Ind AS schema
+        # declares PaidUpValueOfEquityShareCapital as duration.
+        if resolved_taxonomy is not None and taxonomy_version_status(
+            resolved_taxonomy.taxonomy_id, resolved_taxonomy.version
+        ) == "EXACT_VERSION_AVAILABLE":
+            # Once an exact taxonomy version is available, a local-name alias
+            # absent from that version is not eligible for canonical mapping.
+            if get_concept_metadata(
+                resolved_taxonomy.taxonomy_id, resolved_taxonomy.version, concept_name
+            ) is None:
+                continue
+        expected_period_type = get_concept_period_type(
+            concept_name,
+            taxonomy_id=resolved_taxonomy.taxonomy_id if resolved_taxonomy else None,
+            version=resolved_taxonomy.version if resolved_taxonomy else None,
+        )
+        fact = doc.non_dimensioned_fact_for_period(
+            concept_name,
+            period_end,
+            period_start,
+            allowed_namespaces=allowed_namespaces,
+            expected_period_type=expected_period_type,
+        )
         if fact is not None and fact.numeric_value is not None:
             return fact.numeric_value, concept_name
     return None, None
@@ -111,7 +160,12 @@ def _context_matches_period(ctx, period_end, period_start) -> bool:
 
 
 def _resolve_text_metadata(
-    doc: ParsedXbrlDocument, candidates: list, period_end=None, period_start=None
+    doc: ParsedXbrlDocument,
+    candidates: list,
+    period_end=None,
+    period_start=None,
+    allowed_namespaces=None,
+    resolved_taxonomy=None,
 ) -> Optional[str]:
     """Tries each candidate concept name in order (same alias convention as
     _resolve_field). Different sources for the same real-world filing can
@@ -144,6 +198,8 @@ def _resolve_text_metadata(
     """
     for concept_name in candidates:
         matches = doc.facts_for_concept(concept_name)
+        if allowed_namespaces is not None:
+            matches = [m for m in matches if m.namespace in allowed_namespaces]
         non_dim_matches = [
             m for m in matches
             if not doc.contexts.get(m.context_ref, None) or not doc.contexts[m.context_ref].has_dimensions
@@ -173,9 +229,170 @@ def _resolve_text_metadata(
     return None
 
 
+def _normalization_period_expectations(resolved_taxonomy=None) -> dict:
+    """Return canonical numeric concepts with taxonomy-declared period types.
+
+    Missing metadata is unknown, not permission to assume instant or duration
+    from the name of the financial-statement field.
+    """
+    concepts = set()
+    for mapping in (
+        INCOME_STATEMENT_CONCEPT_MAP,
+        BALANCE_SHEET_CONCEPT_MAP,
+        BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS,
+        CASHFLOW_CONCEPT_MAP,
+        CASHFLOW_SUPPLEMENTARY_CONCEPTS,
+        RECONCILIATION_BRIDGE_CONCEPTS,
+        INCOME_STATEMENT_SUPPLEMENTARY_CONCEPTS,
+    ):
+        for candidates in mapping.values():
+            concepts.update(candidates)
+    concepts.update(RATIO_CONCEPTS)
+    return {
+        concept: get_concept_period_type(
+            concept,
+            taxonomy_id=resolved_taxonomy.taxonomy_id if resolved_taxonomy else None,
+            version=resolved_taxonomy.version if resolved_taxonomy else None,
+        )
+        for concept in concepts
+    }
+
+
+def _build_guard_findings(
+    doc: ParsedXbrlDocument,
+    period_end: date,
+    period_start: Optional[date],
+    allowed_namespaces: set,
+    resolved_taxonomy,
+) -> list:
+    findings = []
+    seen = set()
+
+    if resolved_taxonomy is None:
+        findings.append({
+            "check_name": "taxonomy_resolution",
+            "severity": "WARNING",
+            "message": (
+                "No registered standard taxonomy namespace was identified for this filing. "
+                "Canonical financial mappings were disabled; raw facts remain available for review."
+            ),
+        })
+        return findings
+
+    if not resolved_taxonomy.canonical_mapping_enabled:
+        findings.append({
+            "check_name": "taxonomy_mapping_disabled",
+            "severity": "WARNING",
+            "message": (
+                f"Taxonomy family {resolved_taxonomy.taxonomy_id!r} was identified, but its "
+                "canonical financial mappings have not been validated/enabled. No canonical "
+                "financial values were emitted; raw facts remain available for review."
+            ),
+        })
+        return findings
+
+    catalog_status = taxonomy_version_status(
+        resolved_taxonomy.taxonomy_id, resolved_taxonomy.version
+    )
+    if catalog_status != "EXACT_VERSION_AVAILABLE":
+        fallback_version = get_period_type_catalog_version()
+        findings.append({
+            "check_name": "taxonomy_catalog_exact_version_unavailable",
+            "severity": "WARNING",
+            "message": (
+                f"No exact imported taxonomy catalog is available for "
+                f"{resolved_taxonomy.taxonomy_id}@{resolved_taxonomy.version}. "
+                f"The legacy {fallback_version} periodType list may be used only as a defensive "
+                "fallback; concept existence and exact-version semantics remain unverified. "
+                "Keep this filing out of fully trusted data until the matching taxonomy package is imported."
+            ),
+        })
+
+    expectations = _normalization_period_expectations(resolved_taxonomy)
+    for fact in doc.facts:
+        if fact.concept not in expectations:
+            continue
+        context = doc.contexts.get(fact.context_ref)
+        if context is None or context.has_dimensions:
+            continue
+
+        context_end = context.instant_date if context.is_instant else context.period_end
+        if context_end != period_end:
+            continue
+        # Annual filings can legitimately contain both annual and Q4 contexts
+        # for the same duration concept. Ignore alternate durations rather
+        # than labeling them invalid for the requested canonical period.
+        if not context.is_instant and period_start is not None and context.period_start != period_start:
+            continue
+
+        if fact.namespace not in allowed_namespaces:
+            finding = (
+                "namespace_guard",
+                fact.concept,
+                fact.context_ref,
+                fact.namespace,
+            )
+            if finding not in seen:
+                seen.add(finding)
+                findings.append({
+                    "check_name": "normalization_namespace_guard",
+                    "severity": "WARNING",
+                    "message": (
+                        f"Rejected {fact.raw_tag} in context {fact.context_ref}: its namespace "
+                        f"{fact.namespace!r} is not the registered taxonomy namespace "
+                        f"{resolved_taxonomy.namespace!r}; local-name matching is not sufficient "
+                        "for a canonical financial mapping. The raw fact was preserved."
+                    ),
+                })
+            continue
+
+        expected_type = expectations[fact.concept]
+        if expected_type not in ("instant", "duration"):
+            finding = ("missing_period_type_metadata", fact.concept, fact.context_ref)
+            if finding not in seen:
+                seen.add(finding)
+                findings.append({
+                    "check_name": "normalization_period_type_metadata_missing",
+                    "severity": "WARNING",
+                    "message": (
+                        f"No periodType metadata is available for mapped concept {fact.concept!r} "
+                        f"in context {fact.context_ref}. It was not checked against a guessed "
+                        "statement-level period type; review the exact taxonomy XSD before trusting it."
+                    ),
+                })
+            continue
+        actual_type = "instant" if context.is_instant else "duration"
+        if actual_type != expected_type:
+            finding = ("period_type_guard", fact.concept, fact.context_ref, actual_type, expected_type)
+            if finding not in seen:
+                seen.add(finding)
+                findings.append({
+                    "check_name": "normalization_period_type_guard",
+                    "severity": "WARNING",
+                    "message": (
+                        f"Rejected {fact.raw_tag} in context {fact.context_ref}: expected a "
+                        f"{expected_type} context for its mapped statement field, but the source "
+                        f"context is {actual_type}. The raw fact was preserved."
+                    ),
+                })
+
+    return findings
+
+
 def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[date] = None) -> NormalizationResult:
+    # Resolve taxonomy before reading any values. If there is no supported
+    # taxonomy identity, we fail closed rather than guessing from local names.
+    resolved_taxonomy = resolve_taxonomy_for_document(doc)
+    allowed_namespaces = (
+        {resolved_taxonomy.namespace}
+        if resolved_taxonomy is not None and resolved_taxonomy.canonical_mapping_enabled
+        else set()
+    )
+
     statement_type_raw = _resolve_text_metadata(
-        doc, METADATA_CONCEPTS["statement_type"], period_end=period_end, period_start=period_start
+        doc, METADATA_CONCEPTS["statement_type"], period_end=period_end,
+        period_start=period_start, allowed_namespaces=allowed_namespaces,
+        resolved_taxonomy=resolved_taxonomy,
     )
     statement_type = None
     if statement_type_raw:
@@ -188,10 +405,14 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
             statement_type = None  # unrecognized value — do not guess
 
     reporting_quarter_raw = _resolve_text_metadata(
-        doc, METADATA_CONCEPTS["reporting_quarter"], period_end=period_end, period_start=period_start
+        doc, METADATA_CONCEPTS["reporting_quarter"], period_end=period_end,
+        period_start=period_start, allowed_namespaces=allowed_namespaces,
+        resolved_taxonomy=resolved_taxonomy,
     )
     audited_status_raw = _resolve_text_metadata(
-        doc, METADATA_CONCEPTS["audited_status"], period_end=period_end, period_start=period_start
+        doc, METADATA_CONCEPTS["audited_status"], period_end=period_end,
+        period_start=period_start, allowed_namespaces=allowed_namespaces,
+        resolved_taxonomy=resolved_taxonomy,
     )
 
     # Unit: look at the unit actually attached to RevenueFromOperations (or
@@ -204,10 +425,22 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
     income_statement = {}
     units_seen = set()
     for field_name, candidates in INCOME_STATEMENT_CONCEPT_MAP.items():
-        value, matched_concept = _resolve_field(doc, candidates, period_end, period_start)
+        value, matched_concept = _resolve_field(
+            doc, candidates, period_end, period_start,
+            allowed_namespaces=allowed_namespaces,
+            resolved_taxonomy=resolved_taxonomy,
+        )
         income_statement[field_name] = value
         if value is not None:
-            fact = doc.non_dimensioned_fact_for_period(matched_concept, period_end, period_start)
+            fact = doc.non_dimensioned_fact_for_period(
+                matched_concept, period_end, period_start,
+                allowed_namespaces=allowed_namespaces,
+                expected_period_type=get_concept_period_type(
+                    matched_concept,
+                    taxonomy_id=resolved_taxonomy.taxonomy_id if resolved_taxonomy else None,
+                    version=resolved_taxonomy.version if resolved_taxonomy else None,
+                ),
+            )
             if fact and fact.unit_ref:
                 unit_obj = doc.units.get(fact.unit_ref)
                 if unit_obj:
@@ -223,9 +456,15 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
 
     balance_sheet = {}
     for field_name, candidates in BALANCE_SHEET_CONCEPT_MAP.items():
-        # balance sheet items are instant-context facts; period_end is the
-        # instant date here, period_start is irrelevant
-        value, _ = _resolve_field(doc, candidates, period_end, None)
+        # The taxonomy's own periodType is authoritative per concept. Do not
+        # assume all fields presented with balance-sheet information are
+        # instant concepts; the supplied schema marks share-capital value as
+        # a duration concept.
+        value, _ = _resolve_field(
+            doc, candidates, period_end, None,
+            allowed_namespaces=allowed_namespaces,
+            resolved_taxonomy=resolved_taxonomy,
+        )
         balance_sheet[field_name] = value
 
     # Balance-sheet SUBTOTAL concepts (CurrentAssets, Equity, bare
@@ -235,12 +474,20 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
     # reconciliation (validate_balance_sheet's three-way
     # Assets = Equity + Liabilities check) and traceability.
     for field_name, candidates in BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS.items():
-        value, _ = _resolve_field(doc, candidates, period_end, None)
+        value, _ = _resolve_field(
+            doc, candidates, period_end, None,
+            allowed_namespaces=allowed_namespaces,
+            resolved_taxonomy=resolved_taxonomy,
+        )
         balance_sheet[field_name] = value
 
     cashflow_statement = {}
     for field_name, candidates in CASHFLOW_CONCEPT_MAP.items():
-        value, _ = _resolve_field(doc, candidates, period_end, period_start)
+        value, _ = _resolve_field(
+            doc, candidates, period_end, period_start,
+            allowed_namespaces=allowed_namespaces,
+            resolved_taxonomy=resolved_taxonomy,
+        )
         cashflow_statement[field_name] = value
 
     # Cash-flow supplementary concepts (FX effect, interest/dividend
@@ -248,7 +495,11 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
     # into `cashflow_statement`. fx_effect_on_cash specifically feeds the
     # CFO + CFI + CFF + FX = net change in cash reconciliation.
     for field_name, candidates in CASHFLOW_SUPPLEMENTARY_CONCEPTS.items():
-        value, _ = _resolve_field(doc, candidates, period_end, period_start)
+        value, _ = _resolve_field(
+            doc, candidates, period_end, period_start,
+            allowed_namespaces=allowed_namespaces,
+            resolved_taxonomy=resolved_taxonomy,
+        )
         cashflow_statement[field_name] = value
 
     # Reconciliation-bridge items (ISSUE 5): resolved the same way as any
@@ -259,7 +510,11 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
     # a schema migration, and without ever being written to income_statement
     # rows themselves.
     for field_name, candidates in RECONCILIATION_BRIDGE_CONCEPTS.items():
-        value, _ = _resolve_field(doc, candidates, period_end, period_start)
+        value, _ = _resolve_field(
+            doc, candidates, period_end, period_start,
+            allowed_namespaces=allowed_namespaces,
+            resolved_taxonomy=resolved_taxonomy,
+        )
         income_statement[field_name] = value
 
     # Supplementary income-statement concepts (EPS continuing/discontinued
@@ -270,12 +525,24 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
     # UNMAPPED_FINANCIAL, and so they're available for future derived
     # metrics without a schema migration.
     for field_name, candidates in INCOME_STATEMENT_SUPPLEMENTARY_CONCEPTS.items():
-        value, _ = _resolve_field(doc, candidates, period_end, period_start)
+        value, _ = _resolve_field(
+            doc, candidates, period_end, period_start,
+            allowed_namespaces=allowed_namespaces,
+            resolved_taxonomy=resolved_taxonomy,
+        )
         income_statement[field_name] = value
 
     ratios = []
     for concept_name, display_name in RATIO_CONCEPTS.items():
-        fact = doc.non_dimensioned_fact_for_period(concept_name, period_end, period_start)
+        fact = doc.non_dimensioned_fact_for_period(
+            concept_name, period_end, period_start,
+            allowed_namespaces=allowed_namespaces,
+            expected_period_type=get_concept_period_type(
+                concept_name,
+                taxonomy_id=resolved_taxonomy.taxonomy_id if resolved_taxonomy else None,
+                version=resolved_taxonomy.version if resolved_taxonomy else None,
+            ),
+        )
         if fact is not None and fact.numeric_value is not None:
             unit_obj = doc.units.get(fact.unit_ref) if fact.unit_ref else None
             ratios.append(
@@ -305,7 +572,27 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
     for candidates in METADATA_CONCEPTS.values():
         all_mapped_concepts.update(candidates)
 
-    classification = classify_facts(doc.facts, all_mapped_concepts)
+    classification = classify_facts(
+        doc.facts,
+        all_mapped_concepts,
+        allowed_namespaces=allowed_namespaces,
+        taxonomy_id=resolved_taxonomy.taxonomy_id if resolved_taxonomy else None,
+        taxonomy_version=resolved_taxonomy.version if resolved_taxonomy else None,
+        mapped_metadata_concepts={concept for candidates in METADATA_CONCEPTS.values() for concept in candidates},
+    )
+    taxonomy_classification = classify_facts_taxonomy(
+        doc,
+        all_mapped_concepts,
+        canonical_mapping_enabled=bool(
+            resolved_taxonomy is not None and resolved_taxonomy.canonical_mapping_enabled
+        ),
+        taxonomy_id=resolved_taxonomy.taxonomy_id if resolved_taxonomy else None,
+        taxonomy_version=resolved_taxonomy.version if resolved_taxonomy else None,
+        mapped_metadata_concepts={concept for candidates in METADATA_CONCEPTS.values() for concept in candidates},
+    )
+    guard_findings = _build_guard_findings(
+        doc, period_end, period_start, allowed_namespaces, resolved_taxonomy
+    )
 
     period = NormalizedPeriod(
         period_start=period_start,
@@ -363,10 +650,13 @@ def normalize(doc: ParsedXbrlDocument, period_end: date, period_start: Optional[
         ratios=ratios,
         warnings=warnings,
         classification=classification,
+        resolved_taxonomy=resolved_taxonomy,
+        taxonomy_classification=taxonomy_classification,
         income_statement_coverage=income_statement_coverage,
         balance_sheet_coverage=balance_sheet_coverage,
         cashflow_statement_coverage=cashflow_statement_coverage,
         segment_data_coverage=segment_data_coverage,
         eps_coverage=eps_coverage,
         ratios_coverage=ratios_coverage,
+        guard_findings=guard_findings,
     )

@@ -37,22 +37,25 @@ def _minimal_doc(statement_type_text: str, period_start: date, period_end: date,
     units = {"INR": XbrlUnit(unit_ref="INR", measure="INR")}
     facts = [
         XbrlFact(
-            context_ref=ctx_ref, namespace="in-capmkt", concept="NatureOfReportStandaloneConsolidated",
+            context_ref=ctx_ref, namespace="http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", concept="NatureOfReportStandaloneConsolidated",
             raw_tag="in-capmkt:NatureOfReportStandaloneConsolidated", raw_value=statement_type_text,
             numeric_value=None, unit_ref=None, decimals=None, scale=None, sign=None,
         ),
         XbrlFact(
-            context_ref=ctx_ref, namespace="in-capmkt", concept="ReportingQuarter",
+            context_ref=ctx_ref, namespace="http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", concept="ReportingQuarter",
             raw_tag="in-capmkt:ReportingQuarter", raw_value=reporting_quarter,
             numeric_value=None, unit_ref=None, decimals=None, scale=None, sign=None,
         ),
         XbrlFact(
-            context_ref=ctx_ref, namespace="in-capmkt", concept="RevenueFromOperations",
+            context_ref=ctx_ref, namespace="http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", concept="RevenueFromOperations",
             raw_tag="in-capmkt:RevenueFromOperations", raw_value="1000000",
             numeric_value=Decimal("1000000"), unit_ref="INR", decimals="-5", scale=None, sign=None,
         ),
     ]
-    return ParsedXbrlDocument(contexts=contexts, units=units, facts=facts, source_format="XBRL_XML")
+    return ParsedXbrlDocument(
+        contexts=contexts, units=units, facts=facts, source_format="XBRL_XML",
+        schema_refs=("in-capmkt-ent-2026-01-31.xsd",), namespace_map={"in-capmkt": "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt", "in-capmkt-ent": "http://www.sebi.gov.in/xbrl/IntegratedFinance_IndAS/2026-01-31/in-capmkt/in-capmkt-ent"},
+    )
 
 
 # --------------------------------------------------------------------------

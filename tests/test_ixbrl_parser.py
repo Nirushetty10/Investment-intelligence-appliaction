@@ -76,6 +76,12 @@ def test_contexts_parsed_with_correct_periods(parsed_doc):
     assert segment_ctx.has_dimensions, "segment context must be flagged as dimensioned"
 
 
+def test_inline_fact_namespace_is_resolved_to_full_uri_not_prefix(parsed_doc):
+    """Normalization relies on exact namespace identity, not a QName prefix."""
+    revenue = next(f for f in parsed_doc.facts if f.concept == "RevenueFromOperations")
+    assert revenue.namespace == "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt"
+
+
 def test_statement_type_read_from_metadata_not_guessed(normalized):
     assert normalized.period.statement_type == "consolidated"
 

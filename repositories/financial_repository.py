@@ -1,3 +1,4 @@
+import json
 """
 repositories/financial_repository.py
 
@@ -9,21 +10,49 @@ from sqlalchemy import text
 
 
 def upsert_financial_period(session, record: dict) -> int:
+    # Older callers remain safe by defaulting existing/unassessed periods to
+    # PROVISIONAL; no row is trusted merely because it predates this gate.
+    record = dict(record)
+    record.setdefault("trust_status", "PROVISIONAL")
+    record.setdefault("taxonomy_id", None)
+    record.setdefault("taxonomy_version", None)
+    record.setdefault("taxonomy_namespace", None)
+    record.setdefault("taxonomy_source_package_version", None)
+    record.setdefault("taxonomy_catalog_status", "TAXONOMY_UNRESOLVED")
+    record.setdefault("canonical_mapping_enabled", False)
+    record["source_schema_refs_json"] = json.dumps(record.pop("source_schema_refs", []) or [])
+    record["trust_reasons_json"] = json.dumps(record.pop("trust_reasons", []) or [])
     sql = text(
         """
         INSERT INTO financial_periods (
             company_id, period_type, statement_type, period_start_date,
             period_end_date, financial_year, financial_quarter,
-            source_filing_id, source
+            source_filing_id, source, trust_status,
+            taxonomy_id, taxonomy_version, taxonomy_namespace,
+            taxonomy_source_package_version, taxonomy_catalog_status,
+            canonical_mapping_enabled, source_schema_refs, trust_reasons
         ) VALUES (
             :company_id, :period_type, :statement_type, :period_start_date,
             :period_end_date, :financial_year, :financial_quarter,
-            :source_filing_id, :source
+            :source_filing_id, :source, :trust_status,
+            :taxonomy_id, :taxonomy_version, :taxonomy_namespace,
+            :taxonomy_source_package_version, :taxonomy_catalog_status,
+            :canonical_mapping_enabled, CAST(:source_schema_refs_json AS JSONB),
+            CAST(:trust_reasons_json AS JSONB)
         )
         ON CONFLICT (company_id, period_type, statement_type, period_end_date)
         DO UPDATE SET
             source_filing_id = EXCLUDED.source_filing_id,
             source = EXCLUDED.source,
+            trust_status = EXCLUDED.trust_status,
+            taxonomy_id = EXCLUDED.taxonomy_id,
+            taxonomy_version = EXCLUDED.taxonomy_version,
+            taxonomy_namespace = EXCLUDED.taxonomy_namespace,
+            taxonomy_source_package_version = EXCLUDED.taxonomy_source_package_version,
+            taxonomy_catalog_status = EXCLUDED.taxonomy_catalog_status,
+            canonical_mapping_enabled = EXCLUDED.canonical_mapping_enabled,
+            source_schema_refs = EXCLUDED.source_schema_refs,
+            trust_reasons = EXCLUDED.trust_reasons,
             updated_at = now()
         RETURNING period_id
         """

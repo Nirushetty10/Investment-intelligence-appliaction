@@ -196,9 +196,15 @@ DETAIL_COMPONENT_CONCEPTS = {
 # filing with balance-sheet data.
 #
 BALANCE_SHEET_CONCEPT_MAP = {
+    # "PaidUpEquityShareCapital" was REMOVED from this list (taxonomy
+    # validation pass): checked against the real RELIANCE Q1 FY27 filing
+    # and confirmed to match zero facts — see
+    # taxonomy/manifests.py KNOWN_INVALID_CONCEPTS, and
+    # tests/test_taxonomy_validation.py, which fails if it's ever re-added.
+    # "PaidUpValueOfEquityShareCapital" is CONFIRMED real (same filing).
     "equity_share_capital": [
-        "PaidUpValueOfEquityShareCapital", "PaidUpEquityShareCapital",
-        "EquityShareCapital", "IssuedCapital",
+        "PaidUpValueOfEquityShareCapital",
+        "EquityShareCapital", "IssuedCapital",  # unverified — not disproved, kept for cross-company coverage
     ],
     "other_equity": ["OtherEquity"],
 
@@ -298,6 +304,16 @@ BALANCE_SHEET_SUPPLEMENTARY_CONCEPTS = {
     "total_non_current_assets": ["NoncurrentAssets", "NonCurrentAssets"],
     "total_current_liabilities": ["CurrentLiabilities"],
     "total_non_current_liabilities": ["NoncurrentLiabilities", "NonCurrentLiabilities"],
+
+    # Ind-AS distinguishes "financial assets/liabilities" (instruments —
+    # investments, receivables, loans, derivatives — measured per Ind AS
+    # 109) from the broader current/non-current asset/liability totals
+    # above, which also include non-financial items (inventory, PPE,
+    # provisions). Both are real, distinct taxonomy subtotals.
+    "total_current_financial_assets": ["CurrentFinancialAssets"],
+    "total_non_current_financial_assets": ["NoncurrentFinancialAssets", "NonCurrentFinancialAssets"],
+    "total_current_financial_liabilities": ["CurrentFinancialLiabilities"],
+    "total_non_current_financial_liabilities": ["NoncurrentFinancialLiabilities", "NonCurrentFinancialLiabilities"],
 }
 
 CASHFLOW_CONCEPT_MAP = {

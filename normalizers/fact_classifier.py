@@ -53,10 +53,19 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from normalizers.concept_map import DETAIL_COMPONENT_CONCEPTS, KNOWN_UNMAPPED_FINANCIAL_CONCEPTS
+from taxonomy.catalog import get_concept_metadata, taxonomy_version_status
 
 MAPPED = "MAPPED"
 INTENTIONALLY_UNMAPPED = "INTENTIONALLY_UNMAPPED"
 UNMAPPED_FINANCIAL = "UNMAPPED_FINANCIAL"
+
+# These taxonomy value kinds are not numeric financial values. The taxonomy
+# importer derives them from the element's declared XSD type, not the raw
+# value or its local name. Unknown/custom types are deliberately NOT in this
+# set: an unresolved type must remain reviewable rather than being hidden.
+NON_FINANCIAL_VALUE_KINDS = {
+    "string", "boolean", "date", "enumeration", "text_block", "identifier",
+}
 
 # Concept-name PREFIX patterns that reliably indicate a cash-flow
 # reconciliation detail line (a component reconciling PBT to operating
@@ -151,20 +160,38 @@ class FactClassificationResult:
     category: Optional[str] = None  # sub-reason, e.g. "segment_dimensional", "filer_identity"
 
 
-def classify_concept(concept: str, mapped_concepts: set) -> FactClassificationResult:
+def classify_concept(
+    concept: str,
+    mapped_concepts: set,
+    *,
+    value_kind: Optional[str] = None,
+    mapped_metadata_concepts: Optional[set] = None,
+) -> FactClassificationResult:
     """
     `mapped_concepts` is the full set of concept local-names the normalizer
     actually resolves fields from (built once per normalize() call from
     every concept map, including supplementary/bridge/ratio/metadata maps
     — see normalizers/financial_normalizer.py build_mapped_concepts()).
     """
-    if concept in mapped_concepts:
-        return FactClassificationResult(MAPPED)
-
     if concept in INTENTIONALLY_UNMAPPED_CONCEPTS:
         return FactClassificationResult(
             INTENTIONALLY_UNMAPPED, INTENTIONALLY_UNMAPPED_CONCEPTS[concept]
         )
+
+    # Explicit metadata concepts (e.g. reporting quarter / audit status) are
+    # consumed by the metadata resolver, so a non-numeric value is expected.
+    # For every other concept, an authoritative non-financial XSD type must
+    # not count as a mapped financial value merely because an alias happens
+    # to appear in a numeric concept map.
+    if value_kind in NON_FINANCIAL_VALUE_KINDS:
+        if concept in (mapped_metadata_concepts or set()):
+            return FactClassificationResult(MAPPED)
+        return FactClassificationResult(
+            INTENTIONALLY_UNMAPPED, f"taxonomy_non_financial_{value_kind}"
+        )
+
+    if concept in mapped_concepts:
+        return FactClassificationResult(MAPPED)
 
     if concept in DETAIL_COMPONENT_CONCEPTS:
         return FactClassificationResult(INTENTIONALLY_UNMAPPED, "detail_component")
@@ -202,10 +229,47 @@ class ClassificationTally:
         return self.intentionally_unmapped_count + self.unmapped_financial_count
 
 
-def classify_facts(facts, mapped_concepts: set) -> ClassificationTally:
+def classify_facts(
+    facts,
+    mapped_concepts: set,
+    allowed_namespaces=None,
+    *,
+    taxonomy_id: Optional[str] = None,
+    taxonomy_version: Optional[str] = None,
+    mapped_metadata_concepts: Optional[set] = None,
+) -> ClassificationTally:
+    exact_catalog_available = taxonomy_version_status(taxonomy_id, taxonomy_version) == "EXACT_VERSION_AVAILABLE"
     tally = ClassificationTally()
     for fact in facts:
-        result = classify_concept(fact.concept, mapped_concepts)
+        value_kind = None
+        if exact_catalog_available:
+            metadata = get_concept_metadata(taxonomy_id, taxonomy_version, fact.concept)
+            # QName identity matters here as well: never borrow type metadata
+            # from a standard concept when the fact itself belongs to an
+            # issuer extension or another namespace.
+            if metadata and metadata.get("namespace") == fact.namespace:
+                value_kind = metadata.get("value_kind")
+
+        # A known local name in an unsupported/extension namespace is not a
+        # successful mapping. Keep known metadata/detail classifications,
+        # but force a mapped-looking financial concept from an ineligible
+        # namespace into the review bucket instead of reporting it as mapped.
+        if (
+            allowed_namespaces is not None
+            and fact.namespace not in allowed_namespaces
+            and fact.concept in mapped_concepts
+            and fact.concept not in INTENTIONALLY_UNMAPPED_CONCEPTS
+            and fact.concept not in DETAIL_COMPONENT_CONCEPTS
+            and not fact.concept.startswith(_DETAIL_COMPONENT_PREFIXES)
+        ):
+            result = FactClassificationResult(UNMAPPED_FINANCIAL, "unrecognized_namespace_needs_review")
+        else:
+            result = classify_concept(
+                fact.concept,
+                mapped_concepts,
+                value_kind=value_kind,
+                mapped_metadata_concepts=mapped_metadata_concepts,
+            )
         if result.classification == MAPPED:
             tally.mapped_count += 1
         elif result.classification == INTENTIONALLY_UNMAPPED:

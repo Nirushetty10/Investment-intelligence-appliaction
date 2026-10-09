@@ -35,6 +35,8 @@ from lxml import etree
 IX_NS = "http://www.xbrl.org/2013/inlineXBRL"
 XBRLI_NS = "http://www.xbrl.org/2003/instance"
 XBRL_INSTANCE_ROOT_TAGS = {"xbrl", "{http://www.xbrl.org/2003/instance}xbrl"}
+LINK_NS = "http://www.xbrl.org/2003/linkbase"
+XLINK_NS = "http://www.w3.org/1999/xlink"
 
 
 @dataclass
@@ -82,6 +84,15 @@ class ParsedXbrlDocument:
     units: dict              # unit_ref -> XbrlUnit
     facts: list               # list[XbrlFact]
     source_format: str       # "IXBRL_HTML" or "XBRL_XML"
+    # Populated only when a schema/extension resolver has positively
+    # identified an issuer extension namespace. Unknown namespaces are not
+    # automatically considered extensions: they may belong to an
+    # unsupported standard taxonomy.
+    confirmed_extension_namespaces: set = field(default_factory=set)
+    # Filing-level schema evidence. Namespace prefixes are local aliases, so
+    # the resolver must use the URI values rather than prefix names alone.
+    schema_refs: tuple = field(default_factory=tuple)
+    namespace_map: dict = field(default_factory=dict)
 
     def facts_for_concept(self, concept_local_name: str) -> list:
         """Every fact matching this local concept name, across ALL contexts
@@ -91,17 +102,47 @@ class ParsedXbrlDocument:
         return [f for f in self.facts if f.concept == concept_local_name]
 
     def non_dimensioned_fact_for_period(
-        self, concept_local_name: str, period_end: date, period_start: Optional[date] = None
+        self,
+        concept_local_name: str,
+        period_end: date,
+        period_start: Optional[date] = None,
+        *,
+        allowed_namespaces: Optional[set] = None,
+        expected_period_type: Optional[str] = None,
     ) -> Optional[XbrlFact]:
         """Find the single whole-company (no segment/scenario dimensions)
         fact for a concept matching an exact period. Returns None rather
         than guessing if zero or multiple ambiguous matches exist — the
         caller must treat None as 'not available', not as zero."""
+        if expected_period_type not in (None, "instant", "duration"):
+            raise ValueError(
+                "expected_period_type must be one of None, 'instant', or 'duration'"
+            )
+
         candidates = []
         for f in self.facts_for_concept(concept_local_name):
             ctx = self.contexts.get(f.context_ref)
             if ctx is None or ctx.has_dimensions:
                 continue
+
+            # A local concept name is not sufficient identity. Canonical
+            # normalization can only consume facts from a registered
+            # taxonomy namespace selected for this document. Passing an
+            # empty set intentionally rejects all namespaces.
+            if allowed_namespaces is not None and f.namespace not in allowed_namespaces:
+                continue
+
+            # Enforce the concept's expected XBRL period kind before
+            # selecting a value. Without this guard an instant fact could
+            # be interpreted as quarterly revenue (or a duration fact as
+            # a balance-sheet snapshot) merely because its end date matched.
+            if expected_period_type == "instant" and not ctx.is_instant:
+                continue
+            if expected_period_type == "duration" and (
+                ctx.is_instant or ctx.period_start is None or ctx.period_end is None
+            ):
+                continue
+
             if ctx.is_instant:
                 if ctx.instant_date == period_end:
                     candidates.append(f)
@@ -242,6 +283,15 @@ def parse_ixbrl_facts(root: etree._Element) -> list:
                 local_concept = namespace_prefix
                 namespace_prefix = None
 
+            # The `name` attribute uses a lexical QName such as
+            # `in-capmkt:RevenueFromOperations`. Keep the resolved namespace
+            # URI, not the prefix string: prefixes are document-local aliases
+            # and are not reliable taxonomy identities. Use the element's
+            # own nsmap so namespace declarations scoped below the root are
+            # handled as well. An unresolved prefix remains None and will be
+            # rejected by the normalization eligibility guard.
+            namespace_uri = el.nsmap.get(namespace_prefix) if namespace_prefix else None
+
             unit_ref = el.get("unitRef")
             decimals = el.get("decimals")
             sign = el.get("sign")
@@ -259,7 +309,7 @@ def parse_ixbrl_facts(root: etree._Element) -> list:
             facts.append(
                 XbrlFact(
                     context_ref=context_ref,
-                    namespace=namespace_prefix,
+                    namespace=namespace_uri,
                     concept=local_concept,
                     raw_tag=name_attr,
                     raw_value=raw_text.strip() if raw_text else None,
@@ -356,7 +406,29 @@ def parse_document(raw_bytes: bytes) -> ParsedXbrlDocument:
         facts = parse_plain_xbrl_facts(root, contexts)
         source_format = "XBRL_XML"
 
-    return ParsedXbrlDocument(contexts=contexts, units=units, facts=facts, source_format=source_format)
+    # Capture schemaRef and the document's namespace declarations. Sector
+    # identity cannot be resolved safely from the shared in-capmkt core
+    # namespace alone: several NSE taxonomy packages reuse that namespace.
+    schema_refs = tuple(
+        href.strip()
+        for element in root.iter(f"{{{LINK_NS}}}schemaRef")
+        for href in [element.get(f"{{{XLINK_NS}}}href") or element.get("href")]
+        if href and href.strip()
+    )
+    namespace_map = {
+        (prefix if prefix is not None else ""): uri
+        for prefix, uri in root.nsmap.items()
+        if uri
+    }
+
+    return ParsedXbrlDocument(
+        contexts=contexts,
+        units=units,
+        facts=facts,
+        source_format=source_format,
+        schema_refs=schema_refs,
+        namespace_map=namespace_map,
+    )
 
 
 def _looks_like_html(raw_bytes: bytes) -> bool:

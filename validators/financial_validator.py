@@ -353,4 +353,9 @@ def validate_ratio_plausibility(ratios: list) -> list:
 def overall_status(issues: list) -> str:
     if any(i.severity == "ERROR" for i in issues):
         return "FAILED" if all(i.severity == "ERROR" for i in issues) else "PARTIAL"
+    # WARNING means the filing may have been ingested and normalized, but at
+    # least one correctness/coverage condition remains unresolved. Do not call
+    # this VALIDATED merely because no arithmetic ERROR was detected.
+    if any(i.severity == "WARNING" for i in issues):
+        return "PARTIAL"
     return "VALIDATED"
